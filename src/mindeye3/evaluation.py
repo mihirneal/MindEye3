@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 from torch.utils.data import DataLoader
 
-from mindeye3.data.synthetic import PairedBatch
+from mindeye3.data.batches import PairedBatch
 from mindeye3.metrics import topk_retrieval_accuracy
 from mindeye3.models import RetrievalModel
 
@@ -33,4 +33,3 @@ def evaluate_model(
 ) -> dict[str, float]:
     predictions, targets = collect_embeddings(model, loader, device)
     return topk_retrieval_accuracy(predictions, targets, top_k)
-

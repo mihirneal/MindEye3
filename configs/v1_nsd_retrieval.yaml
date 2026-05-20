@@ -1,0 +1,31 @@
+seed: 7
+output_dir: outputs/v1_nsd_retrieval
+
+data:
+  name: nsd
+  root: /teamspace/studios/this_studio/nsd
+  subjects: [1]
+  beta_space: fsaverage
+  beta_version: betas_fithrf_GLMdenoise_RR
+  embedding_cache: /teamspace/studios/this_studio/nsd/cache/embeddings/openclip_vith14.pt
+  max_samples: 2048
+  max_cached_sessions: 2
+  normalize_fmri: true
+  train_fraction: 0.8
+  batch_size: 16
+
+model:
+  hidden_dim: 2048
+  scene_dim: 1024
+  dropout: 0.1
+
+training:
+  epochs: 10
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  temperature: 0.07
+  device: cuda
+  log_every: 25
+
+evaluation:
+  top_k: [1, 5, 10]

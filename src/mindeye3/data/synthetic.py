@@ -1,20 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 from torch.utils.data import DataLoader, Dataset, random_split
 
 from mindeye3.config import DataConfig
+from mindeye3.data.batches import PairedBatch, collate_paired_batch
 from mindeye3.data.types import BrainSample, StimulusEmbedding
-
-
-@dataclass(frozen=True)
-class PairedBatch:
-    subject_id: torch.Tensor
-    fmri: torch.Tensor
-    stimulus_id: torch.Tensor
-    image: torch.Tensor
 
 
 class SyntheticBrainDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
@@ -53,26 +44,10 @@ class SyntheticBrainDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
         )
 
 
-def collate_paired_batch(
-    items: list[tuple[BrainSample, StimulusEmbedding]],
-) -> PairedBatch:
-    return PairedBatch(
-        subject_id=torch.tensor([sample.subject_id for sample, _ in items], dtype=torch.long),
-        fmri=torch.stack([sample.fmri for sample, _ in items]),
-        stimulus_id=torch.tensor(
-            [sample.stimulus_id if sample.stimulus_id is not None else -1 for sample, _ in items],
-            dtype=torch.long,
-        ),
-        image=torch.stack([embedding.require("image") for _, embedding in items]),
-    )
-
-
-def create_dataloaders(
+def create_synthetic_dataloaders(
     config: DataConfig,
     seed: int,
 ) -> tuple[DataLoader[PairedBatch], DataLoader[PairedBatch]]:
-    if config.name != "synthetic":
-        raise ValueError(f"Unsupported dataset for V0 scaffold: {config.name}")
     if not 0.0 < config.train_fraction < 1.0:
         raise ValueError("train_fraction must be between 0 and 1")
 
@@ -101,3 +76,5 @@ def create_dataloaders(
         ),
     )
 
+
+create_dataloaders = create_synthetic_dataloaders

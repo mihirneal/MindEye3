@@ -3,30 +3,42 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+from torch.utils.data import DataLoader
 
 from mindeye3.checkpointing import save_checkpoint
 from mindeye3.config import MindEyeConfig
-from mindeye3.data.synthetic import create_dataloaders
+from mindeye3.data import create_dataloaders
+from mindeye3.data.batches import PairedBatch
 from mindeye3.evaluation import evaluate_model
 from mindeye3.losses import SymmetricContrastiveLoss
 from mindeye3.models import RetrievalModel
 
 
-def build_model(config: MindEyeConfig) -> RetrievalModel:
+def build_model(
+    config: MindEyeConfig,
+    fmri_dim: int | None = None,
+    embedding_dim: int | None = None,
+) -> RetrievalModel:
     return RetrievalModel(
-        fmri_dim=config.data.fmri_dim,
+        fmri_dim=fmri_dim if fmri_dim is not None else config.data.fmri_dim,
         hidden_dim=config.model.hidden_dim,
         scene_dim=config.model.scene_dim,
-        embedding_dim=config.data.embedding_dim,
+        embedding_dim=embedding_dim if embedding_dim is not None else config.data.embedding_dim,
         dropout=config.model.dropout,
     )
+
+
+def infer_batch_dims(loader: DataLoader[PairedBatch]) -> tuple[int, int]:
+    batch = next(iter(loader))
+    return int(batch.fmri.shape[-1]), int(batch.image.shape[-1])
 
 
 def train(config: MindEyeConfig) -> Path:
     torch.manual_seed(config.seed)
     device = torch.device(config.training.device)
     train_loader, eval_loader = create_dataloaders(config.data, seed=config.seed)
-    model = build_model(config).to(device)
+    fmri_dim, embedding_dim = infer_batch_dims(train_loader)
+    model = build_model(config, fmri_dim=fmri_dim, embedding_dim=embedding_dim).to(device)
     criterion = SymmetricContrastiveLoss(config.training.temperature)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -71,4 +83,3 @@ def train(config: MindEyeConfig) -> Path:
     )
     print(f"wrote checkpoint: {checkpoint_path}")
     return checkpoint_path
-

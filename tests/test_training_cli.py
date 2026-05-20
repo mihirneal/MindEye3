@@ -3,6 +3,7 @@ from pathlib import Path
 import yaml
 
 from mindeye3.checkpointing import load_checkpoint
+from mindeye3.cli.build_nsd_embeddings import build_parser as build_embeddings_parser
 from mindeye3.cli.eval import build_parser as build_eval_parser
 from mindeye3.cli.train import build_parser as build_train_parser
 from mindeye3.config import load_config
@@ -14,9 +15,13 @@ def test_cli_parsers_accept_required_args() -> None:
     eval_args = build_eval_parser().parse_args(
         ["--config", "configs/v0_synthetic.yaml", "--checkpoint", "checkpoint.pt"]
     )
+    embedding_args = build_embeddings_parser().parse_args(
+        ["--stimuli", "nsd_stimuli.hdf5", "--output", "cache.pt", "--limit", "10"]
+    )
 
     assert train_args.config == "configs/v0_synthetic.yaml"
     assert eval_args.checkpoint == "checkpoint.pt"
+    assert embedding_args.limit == 10
 
 
 def test_training_smoke_writes_checkpoint(tmp_path: Path) -> None:
@@ -59,4 +64,3 @@ def test_training_smoke_writes_checkpoint(tmp_path: Path) -> None:
     assert checkpoint_path.exists()
     assert checkpoint["epoch"] == 1
     assert "top1" in checkpoint["metrics"]
-

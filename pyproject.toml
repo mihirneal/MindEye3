@@ -5,6 +5,7 @@ description = "Retrieval-first fMRI decoding scaffold for MindEye3."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "nibabel>=5.0",
     "numpy>=1.24",
     "pyyaml>=6.0",
     "torch>=2.1",
@@ -14,8 +15,14 @@ dependencies = [
 dev = [
     "pytest>=8.0",
 ]
+vision = [
+    "h5py>=3.10",
+    "open-clip-torch>=2.24",
+    "pillow>=10.0",
+]
 
 [project.scripts]
+mindeye3-build-nsd-embeddings = "mindeye3.cli.build_nsd_embeddings:main"
 mindeye3-train = "mindeye3.cli.train:main"
 mindeye3-eval = "mindeye3.cli.eval:main"
 
@@ -26,4 +33,3 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-

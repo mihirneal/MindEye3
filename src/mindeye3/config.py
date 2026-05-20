@@ -10,6 +10,15 @@ import yaml
 @dataclass(frozen=True)
 class DataConfig:
     name: str = "synthetic"
+    root: str | None = None
+    subjects: list[int] = field(default_factory=lambda: [1])
+    beta_space: str = "fsaverage"
+    beta_version: str = "betas_fithrf_GLMdenoise_RR"
+    embedding_cache: str | None = None
+    max_samples: int | None = None
+    max_cached_sessions: int = 2
+    normalize_fmri: bool = True
+    include_missing_data: bool = False
     num_samples: int = 256
     num_subjects: int = 4
     fmri_dim: int = 128
@@ -84,4 +93,3 @@ def config_to_dict(config: MindEyeConfig) -> dict[str, Any]:
         "training": vars(config.training),
         "evaluation": vars(config.evaluation),
     }
-
