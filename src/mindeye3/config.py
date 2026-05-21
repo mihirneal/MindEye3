@@ -29,6 +29,7 @@ class DataConfig:
     noise_std: float = 0.05
     train_fraction: float = 0.8
     batch_size: int = 32
+    group_batches_by_stimulus: bool = False
 
 
 @dataclass(frozen=True)

@@ -137,6 +137,43 @@ def test_nsd_dataset_selects_multi_subject_ncsnr_topk(tmp_path: Path) -> None:
     assert embedding.require("clip_tokens").shape == (2, 4)
 
 
+def test_nsd_dataloaders_can_group_batches_by_stimulus(tmp_path: Path) -> None:
+    root = _write_nsd_fixture(tmp_path, include_repeat=True)
+    shutil.copytree(
+        root / "nsddata" / "ppdata" / "subj01",
+        root / "nsddata" / "ppdata" / "subj02",
+    )
+    shutil.copytree(
+        root / "nsddata_betas" / "ppdata" / "subj01",
+        root / "nsddata_betas" / "ppdata" / "subj02",
+    )
+    cache_path = tmp_path / "embeddings.pt"
+    torch.save(
+        {
+            "stimulus_ids": torch.tensor([101, 102, 103]),
+            "embeddings": torch.eye(3),
+        },
+        cache_path,
+    )
+
+    config = DataConfig(
+        name="nsd",
+        root=str(root),
+        embedding_cache=str(cache_path),
+        subjects=[1, 2],
+        average_repeats=True,
+        normalize_fmri=False,
+        train_fraction=0.67,
+        batch_size=4,
+        group_batches_by_stimulus=True,
+    )
+    train_loader, _ = create_project_dataloaders(config, seed=1)
+    batch = next(iter(train_loader))
+    _, counts = torch.unique(batch.stimulus_id, return_counts=True)
+
+    assert int(counts.max()) == 2
+
+
 def test_nsd_dataloaders_split_by_stimulus(tmp_path: Path) -> None:
     root = _write_nsd_fixture(tmp_path)
     cache_path = tmp_path / "embeddings.pt"

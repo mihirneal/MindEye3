@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import BatchSampler, DataLoader, Dataset, Subset
 
 from mindeye3.config import DataConfig
 from mindeye3.data.batches import PairedBatch, collate_paired_batch
@@ -318,13 +318,26 @@ def create_nsd_dataloaders(
 ) -> tuple[DataLoader[PairedBatch], DataLoader[PairedBatch]]:
     dataset = NSDDataset(config)
     train_dataset, eval_dataset = split_by_stimulus(dataset, config.train_fraction, seed)
-    return (
-        DataLoader(
+    if config.group_batches_by_stimulus:
+        train_loader = DataLoader(
+            train_dataset,
+            batch_sampler=StimulusGroupedBatchSampler(
+                dataset=dataset,
+                indices=train_dataset.indices,
+                batch_size=config.batch_size,
+                seed=seed,
+            ),
+            collate_fn=collate_paired_batch,
+        )
+    else:
+        train_loader = DataLoader(
             train_dataset,
             batch_size=config.batch_size,
             shuffle=True,
             collate_fn=collate_paired_batch,
-        ),
+        )
+    return (
+        train_loader,
         DataLoader(
             eval_dataset,
             batch_size=config.batch_size,
@@ -332,6 +345,55 @@ def create_nsd_dataloaders(
             collate_fn=collate_paired_batch,
         ),
     )
+
+
+class StimulusGroupedBatchSampler(BatchSampler):
+    def __init__(
+        self,
+        dataset: NSDDataset,
+        indices: list[int],
+        batch_size: int,
+        seed: int,
+    ) -> None:
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        self.dataset = dataset
+        self.indices = list(indices)
+        self.batch_size = batch_size
+        self.seed = seed
+        self.epoch = 0
+        groups: dict[int, list[int]] = defaultdict(list)
+        for subset_index, dataset_index in enumerate(self.indices):
+            groups[dataset.samples[dataset_index].stimulus_id].append(subset_index)
+        self.groups = list(groups.values())
+
+    def __iter__(self):
+        generator = torch.Generator().manual_seed(self.seed + self.epoch)
+        self.epoch += 1
+        group_order = torch.randperm(len(self.groups), generator=generator).tolist()
+        batch: list[int] = []
+        for group_index in group_order:
+            group = self.groups[group_index]
+            local_order = torch.randperm(len(group), generator=generator).tolist()
+            shuffled_group = [group[index] for index in local_order]
+            if batch and len(batch) + len(shuffled_group) > self.batch_size:
+                yield batch
+                batch = []
+            batch.extend(shuffled_group)
+        if batch:
+            yield batch
+
+    def __len__(self) -> int:
+        if not self.groups:
+            return 0
+        batches = 0
+        size = 0
+        for group in self.groups:
+            if size and size + len(group) > self.batch_size:
+                batches += 1
+                size = 0
+            size += len(group)
+        return batches + int(size > 0)
 
 
 def split_by_stimulus(
