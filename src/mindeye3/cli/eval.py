@@ -47,8 +47,13 @@ def main(argv: list[str] | None = None) -> None:
     device = torch.device(config.training.device)
     train_loader, eval_loader = create_dataloaders(config.data, seed=config.seed)
     reference_loader = train_loader if args.split == "train" else eval_loader
-    fmri_dim, embedding_dim = infer_batch_dims(reference_loader)
-    model = build_model(config, fmri_dim=fmri_dim, embedding_dim=embedding_dim).to(device)
+    fmri_dim, embedding_dim, clip_token_shape = infer_batch_dims(reference_loader)
+    model = build_model(
+        config,
+        fmri_dim=fmri_dim,
+        embedding_dim=embedding_dim,
+        clip_token_shape=clip_token_shape,
+    ).to(device)
     checkpoint = load_checkpoint(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model"])
     loaders = {"train": train_loader, "eval": eval_loader}
