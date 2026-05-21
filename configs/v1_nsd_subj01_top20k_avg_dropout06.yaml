@@ -1,0 +1,35 @@
+seed: 7
+output_dir: outputs/v1_nsd_subj01_top20k_avg_dropout06
+
+data:
+  name: nsd
+  root: /teamspace/studios/this_studio/nsd
+  subjects: [1]
+  beta_space: fsaverage
+  beta_version: betas_fithrf_GLMdenoise_RR
+  embedding_cache: /teamspace/studios/this_studio/nsd/cache/embeddings/openclip_vith14.pt
+  max_samples:
+  max_cached_sessions: 64
+  normalize_fmri: true
+  include_missing_data: false
+  average_repeats: true
+  ncsnr_topk: 20000
+  train_fraction: 0.8
+  batch_size: 64
+
+model:
+  hidden_dim: 2048
+  scene_dim: 1024
+  dropout: 0.6
+
+training:
+  epochs: 20
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  temperature: 0.07
+  device: cuda
+  log_every: 25
+  best_metric: image_top10
+
+evaluation:
+  top_k: [1, 5, 10]
