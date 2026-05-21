@@ -59,7 +59,7 @@ class StimulusEmbeddingCache:
 
         self.embedding_dim = int(embeddings_tensor.shape[1])
         clip_tokens = payload.get("clip_tokens")
-        clip_tokens_tensor = None if clip_tokens is None else torch.as_tensor(clip_tokens, dtype=torch.float32)
+        clip_tokens_tensor = None if clip_tokens is None else torch.as_tensor(clip_tokens)
         if clip_tokens_tensor is not None and clip_tokens_tensor.shape[0] != ids_tensor.shape[0]:
             raise ValueError("stimulus_ids and clip_tokens must have the same length")
 
@@ -71,7 +71,7 @@ class StimulusEmbeddingCache:
 
         self._by_stimulus_id: dict[int, StimulusEmbedding] = {}
         for index, (stimulus_id, embedding) in enumerate(zip(ids_tensor.tolist(), embeddings_tensor)):
-            clip_token_value = None if clip_tokens_tensor is None else clip_tokens_tensor[index].float()
+            clip_token_value = None if clip_tokens_tensor is None else clip_tokens_tensor[index]
             self._by_stimulus_id[int(stimulus_id)] = StimulusEmbedding(
                 image=torch.nn.functional.normalize(embedding.float(), dim=0),
                 clip_tokens=clip_token_value,
