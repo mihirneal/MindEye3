@@ -48,6 +48,8 @@ def train(config: MindEyeConfig) -> Path:
 
     global_step = 0
     latest_metrics: dict[str, float] = {}
+    best_metric_value = float("-inf")
+    best_checkpoint_path = Path(config.output_dir) / "best_checkpoint.pt"
     for epoch in range(1, config.training.epochs + 1):
         model.train()
         running_loss = 0.0
@@ -71,6 +73,21 @@ def train(config: MindEyeConfig) -> Path:
         latest_metrics = evaluate_model(model, eval_loader, config.evaluation.top_k, device)
         metric_text = " ".join(f"{key}={value:.3f}" for key, value in latest_metrics.items())
         print(f"epoch={epoch} eval {metric_text}")
+        metric_value = latest_metrics.get(config.training.best_metric)
+        if metric_value is None:
+            available = ", ".join(sorted(latest_metrics))
+            raise KeyError(f"Unknown best_metric {config.training.best_metric!r}. Available metrics: {available}")
+        if metric_value > best_metric_value:
+            best_metric_value = metric_value
+            save_checkpoint(
+                best_checkpoint_path,
+                model=model,
+                optimizer=optimizer,
+                config=config,
+                epoch=epoch,
+                metrics=latest_metrics,
+            )
+            print(f"wrote best checkpoint: {best_checkpoint_path} {config.training.best_metric}={best_metric_value:.3f}")
 
     checkpoint_path = Path(config.output_dir) / "checkpoint.pt"
     save_checkpoint(

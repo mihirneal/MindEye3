@@ -23,6 +23,17 @@ class NSDTrialRef:
     metadata: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class NSDAveragedRef:
+    subject_id: int
+    stimulus_id: int
+    trials: tuple[NSDTrialRef, ...]
+    metadata: dict[str, Any]
+
+
+NSDSampleRef = NSDTrialRef | NSDAveragedRef
+
+
 class StimulusEmbeddingCache:
     """Torch-backed image embedding cache keyed by NSD 73K stimulus id."""
 
@@ -86,6 +97,10 @@ class NSDBetaLoader:
         session = self._cache[key]
         return session[trial.session_trial_index].clone()
 
+    def load_ncsnr(self, subject_id: int) -> torch.Tensor:
+        hemispheres = [self._load_beta_file(path) for path in self._ncsnr_paths(subject_id)]
+        return torch.cat([hemi.flatten() for hemi in hemispheres], dim=0).float()
+
     def _hemisphere_paths(self, subject_id: int, session: int) -> tuple[Path, Path]:
         base = (
             self.root
@@ -99,6 +114,17 @@ class NSDBetaLoader:
             base / f"lh.betas_session{session:02d}.mgh",
             base / f"rh.betas_session{session:02d}.mgh",
         )
+
+    def _ncsnr_paths(self, subject_id: int) -> tuple[Path, Path]:
+        base = (
+            self.root
+            / "nsddata_betas"
+            / "ppdata"
+            / f"subj{subject_id:02d}"
+            / self.beta_space
+            / self.beta_version
+        )
+        return (base / "lh.ncsnr.mgh", base / "rh.ncsnr.mgh")
 
     def _load_session(self, subject_id: int, session: int) -> torch.Tensor:
         hemispheres = [self._load_beta_file(path) for path in self._hemisphere_paths(subject_id, session)]
@@ -134,25 +160,29 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
             max_cached_sessions=config.max_cached_sessions,
         )
         self.trials = self._build_trials()
-        if not self.trials:
+        self.samples: list[NSDSampleRef] = self._build_samples()
+        self.feature_indices = self._build_feature_indices()
+        if not self.samples:
             raise ValueError("No NSD trials matched the requested subjects, betas, and embedding cache")
 
     def __len__(self) -> int:
-        return len(self.trials)
+        return len(self.samples)
 
     def __getitem__(self, index: int) -> tuple[BrainSample, StimulusEmbedding]:
-        trial = self.trials[index]
-        fmri = self.beta_loader.load_trial(trial).float()
+        sample_ref = self.samples[index]
+        fmri = self._load_sample_fmri(sample_ref)
+        if self.feature_indices is not None:
+            fmri = fmri[self.feature_indices]
         if self.config.normalize_fmri:
             fmri = _zscore(fmri)
         return (
             BrainSample(
-                subject_id=trial.subject_id,
+                subject_id=sample_ref.subject_id,
                 fmri=fmri,
-                stimulus_id=trial.stimulus_id,
-                metadata=trial.metadata,
+                stimulus_id=sample_ref.stimulus_id,
+                metadata=sample_ref.metadata,
             ),
-            StimulusEmbedding(image=self.embedding_cache[trial.stimulus_id]),
+            StimulusEmbedding(image=self.embedding_cache[sample_ref.stimulus_id]),
         )
 
     @property
@@ -164,6 +194,11 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
     def embedding_dim(self) -> int:
         return self.embedding_cache.embedding_dim
 
+    def _load_sample_fmri(self, sample_ref: NSDSampleRef) -> torch.Tensor:
+        if isinstance(sample_ref, NSDTrialRef):
+            return self.beta_loader.load_trial(sample_ref).float()
+        return torch.stack([self.beta_loader.load_trial(trial).float() for trial in sample_ref.trials]).mean(dim=0)
+
     def _build_trials(self) -> list[NSDTrialRef]:
         trials: list[NSDTrialRef] = []
         for subject_id in self.config.subjects:
@@ -172,6 +207,30 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
             if self.config.max_samples is not None and len(trials) >= self.config.max_samples:
                 return trials[: self.config.max_samples]
         return trials
+
+    def _build_samples(self) -> list[NSDSampleRef]:
+        if not self.config.average_repeats:
+            return list(self.trials)
+
+        grouped: dict[tuple[int, int], list[NSDTrialRef]] = defaultdict(list)
+        for trial in self.trials:
+            grouped[(trial.subject_id, trial.stimulus_id)].append(trial)
+
+        samples: list[NSDSampleRef] = []
+        for (subject_id, stimulus_id), trials in grouped.items():
+            samples.append(
+                NSDAveragedRef(
+                    subject_id=subject_id,
+                    stimulus_id=stimulus_id,
+                    trials=tuple(trials),
+                    metadata={
+                        "73kid": stimulus_id,
+                        "num_repeats": len(trials),
+                        "sessions": sorted({trial.session for trial in trials}),
+                    },
+                )
+            )
+        return samples
 
     def _read_subject_trials(self, subject_id: int, response_path: Path) -> list[NSDTrialRef]:
         if not response_path.exists():
@@ -210,6 +269,19 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
                 )
         return trials
 
+    def _build_feature_indices(self) -> torch.Tensor | None:
+        topk = self.config.ncsnr_topk
+        if topk is None:
+            return None
+        if topk <= 0:
+            raise ValueError("ncsnr_topk must be positive")
+
+        if len(self.config.subjects) != 1:
+            raise ValueError("ncsnr_topk currently supports one subject at a time")
+        ncsnr = self.beta_loader.load_ncsnr(self.config.subjects[0])
+        effective_topk = min(topk, ncsnr.numel())
+        return torch.topk(ncsnr, k=effective_topk).indices.sort().values
+
 
 def create_nsd_dataloaders(
     config: DataConfig,
@@ -241,14 +313,14 @@ def split_by_stimulus(
     if not 0.0 < train_fraction < 1.0:
         raise ValueError("train_fraction must be between 0 and 1")
 
-    stimulus_ids = sorted({trial.stimulus_id for trial in dataset.trials})
+    stimulus_ids = sorted({sample.stimulus_id for sample in dataset.samples})
     generator = torch.Generator().manual_seed(seed)
     permutation = torch.randperm(len(stimulus_ids), generator=generator).tolist()
     train_count = max(1, min(len(stimulus_ids) - 1, int(len(stimulus_ids) * train_fraction)))
     train_stimuli = {stimulus_ids[index] for index in permutation[:train_count]}
 
-    train_indices = [index for index, trial in enumerate(dataset.trials) if trial.stimulus_id in train_stimuli]
-    eval_indices = [index for index, trial in enumerate(dataset.trials) if trial.stimulus_id not in train_stimuli]
+    train_indices = [index for index, sample in enumerate(dataset.samples) if sample.stimulus_id in train_stimuli]
+    eval_indices = [index for index, sample in enumerate(dataset.samples) if sample.stimulus_id not in train_stimuli]
     return Subset(dataset, train_indices), Subset(dataset, eval_indices)
 
 

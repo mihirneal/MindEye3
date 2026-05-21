@@ -65,6 +65,37 @@ def test_nsd_dataset_pairs_betas_with_embedding_cache(tmp_path: Path) -> None:
     assert torch.isclose(sample.fmri.mean(), torch.tensor(0.0), atol=1e-6)
 
 
+def test_nsd_dataset_can_average_repeats_and_select_ncsnr_topk(tmp_path: Path) -> None:
+    root = _write_nsd_fixture(tmp_path, include_repeat=True)
+    cache_path = tmp_path / "embeddings.pt"
+    torch.save(
+        {
+            "stimulus_ids": torch.tensor([101, 102, 103]),
+            "embeddings": torch.eye(3),
+        },
+        cache_path,
+    )
+
+    config = DataConfig(
+        name="nsd",
+        root=str(root),
+        embedding_cache=str(cache_path),
+        subjects=[1],
+        average_repeats=True,
+        ncsnr_topk=2,
+        normalize_fmri=False,
+    )
+    dataset = NSDDataset(config)
+    sample, embedding = dataset[0]
+
+    assert len(dataset) == 3
+    assert sample.stimulus_id == 101
+    assert sample.metadata["num_repeats"] == 2
+    assert sample.fmri.shape == (2,)
+    assert torch.allclose(sample.fmri, torch.tensor([2.0, 3.5]))
+    assert torch.allclose(embedding.require("image"), torch.tensor([1.0, 0.0, 0.0]))
+
+
 def test_nsd_dataloaders_split_by_stimulus(tmp_path: Path) -> None:
     root = _write_nsd_fixture(tmp_path)
     cache_path = tmp_path / "embeddings.pt"
@@ -86,8 +117,8 @@ def test_nsd_dataloaders_split_by_stimulus(tmp_path: Path) -> None:
     )
     dataset = NSDDataset(config)
     train_dataset, eval_dataset = split_by_stimulus(dataset, train_fraction=0.67, seed=1)
-    train_stimuli = {dataset.trials[index].stimulus_id for index in train_dataset.indices}
-    eval_stimuli = {dataset.trials[index].stimulus_id for index in eval_dataset.indices}
+    train_stimuli = {dataset.samples[index].stimulus_id for index in train_dataset.indices}
+    eval_stimuli = {dataset.samples[index].stimulus_id for index in eval_dataset.indices}
 
     assert train_stimuli
     assert eval_stimuli
@@ -110,7 +141,7 @@ def test_stimulus_embedding_cache_validates_shape(tmp_path: Path) -> None:
         raise AssertionError("Expected invalid cache shape to fail")
 
 
-def _write_nsd_fixture(tmp_path: Path) -> Path:
+def _write_nsd_fixture(tmp_path: Path, include_repeat: bool = False) -> Path:
     root = tmp_path / "nsd"
     behav = root / "nsddata" / "ppdata" / "subj01" / "behav"
     beta = (
@@ -123,6 +154,15 @@ def _write_nsd_fixture(tmp_path: Path) -> Path:
     )
     behav.mkdir(parents=True)
     beta.mkdir(parents=True)
+    rows = [
+        "1\t1\t1\t1\t101\t1\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n",
+        "1\t1\t1\t2\t102\t2\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n",
+        "1\t1\t1\t3\t103\t3\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n",
+        "1\t1\t1\t4\t999\t4\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n",
+    ]
+    if include_repeat:
+        rows.insert(1, "1\t1\t1\t2\t101\t1\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n")
+
     (behav / "responses.tsv").write_text(
         "\t".join(
             [
@@ -148,12 +188,14 @@ def _write_nsd_fixture(tmp_path: Path) -> Path:
             ]
         )
         + "\n"
-        + "1\t1\t1\t1\t101\t1\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n"
-        + "1\t1\t1\t2\t102\t2\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n"
-        + "1\t1\t1\t3\t103\t3\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n"
-        + "1\t1\t1\t4\t999\t4\t0\t0\t1\t1\t0\tNaN\tNaN\t0\t1\t1\t0\t1\t0\n",
+        + "".join(rows),
         encoding="utf-8",
     )
-    torch.save(torch.arange(6, dtype=torch.float32).reshape(3, 2), beta / "lh.betas_session01.mgh.pt")
-    torch.save(torch.arange(9, dtype=torch.float32).reshape(3, 3), beta / "rh.betas_session01.mgh.pt")
+    num_trials = 5 if include_repeat else 4
+    lh = torch.arange(num_trials * 2, dtype=torch.float32).reshape(num_trials, 2)
+    rh = torch.arange(num_trials * 3, dtype=torch.float32).reshape(num_trials, 3)
+    torch.save(lh, beta / "lh.betas_session01.mgh.pt")
+    torch.save(rh, beta / "rh.betas_session01.mgh.pt")
+    torch.save(torch.tensor([[1.0], [4.0]]), beta / "lh.ncsnr.mgh.pt")
+    torch.save(torch.tensor([[3.0], [2.0], [5.0]]), beta / "rh.ncsnr.mgh.pt")
     return root

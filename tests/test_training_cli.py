@@ -51,6 +51,7 @@ def test_training_smoke_writes_checkpoint(tmp_path: Path) -> None:
             "temperature": 0.1,
             "device": "cpu",
             "log_every": 0,
+            "best_metric": "image_top3",
         },
         "evaluation": {
             "top_k": [1, 3],
@@ -62,5 +63,7 @@ def test_training_smoke_writes_checkpoint(tmp_path: Path) -> None:
     checkpoint = load_checkpoint(checkpoint_path)
 
     assert checkpoint_path.exists()
+    assert (checkpoint_path.parent / "best_checkpoint.pt").exists()
     assert checkpoint["epoch"] == 1
-    assert "top1" in checkpoint["metrics"]
+    assert "trial_top1" in checkpoint["metrics"]
+    assert "image_top1" in checkpoint["metrics"]
