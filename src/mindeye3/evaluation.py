@@ -23,7 +23,8 @@ def collect_embeddings(
     for batch in loader:
         fmri = batch.fmri.to(device)
         image = batch.image.to(device)
-        predictions.append(model(fmri).cpu())
+        subject_id = batch.subject_id.to(device)
+        predictions.append(model(fmri, subject_id=subject_id).cpu())
         targets.append(image.cpu())
         stimulus_ids.append(batch.stimulus_id.cpu())
     return torch.cat(predictions, dim=0), torch.cat(targets, dim=0), torch.cat(stimulus_ids, dim=0)
@@ -39,11 +40,19 @@ def evaluate_model(
     candidate_seed: int = 0,
 ) -> dict[str, float]:
     predictions, targets, stimulus_ids = collect_embeddings(model, loader, device)
-    metrics = {f"trial_{key}": value for key, value in topk_retrieval_accuracy(predictions, targets, top_k).items()}
+    trial_forward = topk_retrieval_accuracy(predictions, targets, top_k)
+    trial_backward = topk_retrieval_accuracy(targets, predictions, top_k)
+    metrics = {f"trial_{key}": value for key, value in trial_forward.items()}
+    metrics.update({f"trial_brain_to_image_{key}": value for key, value in trial_forward.items()})
+    metrics.update({f"trial_image_to_brain_{key}": value for key, value in trial_backward.items()})
     image_predictions, image_targets = average_by_stimulus(predictions, targets, stimulus_ids)
+    image_forward = topk_retrieval_accuracy(image_predictions, image_targets, top_k)
+    image_backward = topk_retrieval_accuracy(image_targets, image_predictions, top_k)
     metrics.update(
-        {f"image_{key}": value for key, value in topk_retrieval_accuracy(image_predictions, image_targets, top_k).items()}
+        {f"image_{key}": value for key, value in image_forward.items()}
     )
+    metrics.update({f"image_brain_to_image_{key}": value for key, value in image_forward.items()})
+    metrics.update({f"image_image_to_brain_{key}": value for key, value in image_backward.items()})
     if candidate_pool_size is not None:
         metrics.update(
             {

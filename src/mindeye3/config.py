@@ -21,6 +21,7 @@ class DataConfig:
     include_missing_data: bool = False
     average_repeats: bool = False
     ncsnr_topk: int | None = None
+    ncsnr_aggregation: str = "mean"
     num_samples: int = 256
     num_subjects: int = 4
     fmri_dim: int = 128
@@ -36,6 +37,8 @@ class ModelConfig:
     hidden_layers: int = 1
     scene_dim: int = 64
     dropout: float = 0.0
+    subject_embedding_dim: int = 0
+    clip_token_loss_weight: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,7 @@ class TrainingConfig:
     lr_schedule: str = "none"
     weight_decay: float = 1e-4
     temperature: float = 0.07
+    retrieval_loss_weight: float = 1.0
     device: str = "cpu"
     log_every: int = 10
     best_metric: str = "image_top10"

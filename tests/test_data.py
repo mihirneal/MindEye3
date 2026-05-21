@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import torch
@@ -94,6 +95,46 @@ def test_nsd_dataset_can_average_repeats_and_select_ncsnr_topk(tmp_path: Path) -
     assert sample.fmri.shape == (2,)
     assert torch.allclose(sample.fmri, torch.tensor([2.0, 3.5]))
     assert torch.allclose(embedding.require("image"), torch.tensor([1.0, 0.0, 0.0]))
+
+
+def test_nsd_dataset_selects_multi_subject_ncsnr_topk(tmp_path: Path) -> None:
+    root = _write_nsd_fixture(tmp_path, include_repeat=True)
+    shutil.copytree(
+        root / "nsddata" / "ppdata" / "subj01",
+        root / "nsddata" / "ppdata" / "subj02",
+    )
+    shutil.copytree(
+        root / "nsddata_betas" / "ppdata" / "subj01",
+        root / "nsddata_betas" / "ppdata" / "subj02",
+    )
+    beta2 = root / "nsddata_betas" / "ppdata" / "subj02" / "fsaverage" / "betas_fithrf_GLMdenoise_RR"
+    torch.save(torch.tensor([[9.0], [2.0]]), beta2 / "lh.ncsnr.mgh.pt")
+    torch.save(torch.tensor([[1.0], [8.0], [7.0]]), beta2 / "rh.ncsnr.mgh.pt")
+    cache_path = tmp_path / "embeddings.pt"
+    torch.save(
+        {
+            "stimulus_ids": torch.tensor([101, 102, 103]),
+            "embeddings": torch.eye(3),
+            "clip_tokens": torch.arange(3 * 2 * 4, dtype=torch.float32).reshape(3, 2, 4),
+        },
+        cache_path,
+    )
+
+    config = DataConfig(
+        name="nsd",
+        root=str(root),
+        embedding_cache=str(cache_path),
+        subjects=[1, 2],
+        average_repeats=True,
+        ncsnr_topk=2,
+        normalize_fmri=False,
+    )
+    dataset = NSDDataset(config)
+    sample, embedding = dataset[0]
+
+    assert len(dataset) == 6
+    assert sample.fmri.shape == (2,)
+    assert embedding.require("clip_tokens").shape == (2, 4)
 
 
 def test_nsd_dataloaders_split_by_stimulus(tmp_path: Path) -> None:

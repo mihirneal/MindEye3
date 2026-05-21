@@ -35,3 +35,25 @@ Then train retrieval:
 ```bash
 uv run mindeye3-train --config configs/v1_nsd_retrieval.yaml
 ```
+
+## Reconstruction V2
+
+The reconstruction path starts with a Brain-IT-inspired joint objective: pooled
+CLIP retrieval plus optional spatial OpenCLIP-token prediction for diffusion
+conditioning. Build a token cache on Lightning before running the joint config:
+
+```bash
+uv run --extra vision mindeye3-build-nsd-embeddings \
+  --stimuli /teamspace/studios/this_studio/nsd/nsddata_stimuli/stimuli/nsd/nsd_stimuli.hdf5 \
+  --output /teamspace/studios/this_studio/nsd/cache/embeddings/openclip_bigG14_laion2b_s39b_b160k_tokens.pt \
+  --model ViT-bigG-14 \
+  --pretrained laion2b_s39b_b160k \
+  --include-clip-tokens \
+  --batch-size 32
+```
+
+Then train the first joint model:
+
+```bash
+uv run mindeye3-train --config configs/v2_nsd_brainit_joint.yaml
+```

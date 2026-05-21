@@ -24,6 +24,9 @@ class RetrievalModel(nn.Module):
         scene_dim: int,
         embedding_dim: int,
         dropout: float = 0.0,
+        num_subjects: int = 0,
+        subject_embedding_dim: int = 0,
+        clip_token_shape: tuple[int, int] | None = None,
     ) -> None:
         super().__init__()
         self.encoder = BrainEncoder(
@@ -32,12 +35,32 @@ class RetrievalModel(nn.Module):
             hidden_layers=hidden_layers,
             scene_dim=scene_dim,
             dropout=dropout,
+            num_subjects=num_subjects,
+            subject_embedding_dim=subject_embedding_dim,
         )
         self.image_head = ProjectionHead(scene_dim, embedding_dim)
+        self.clip_token_shape = clip_token_shape
+        if clip_token_shape is None:
+            self.clip_token_head: nn.Linear | None = None
+        else:
+            num_tokens, token_dim = clip_token_shape
+            self.clip_token_head = nn.Linear(scene_dim, num_tokens * token_dim)
 
-    def encode_brain(self, fmri: torch.Tensor) -> torch.Tensor:
-        return self.encoder(fmri)
+    def encode_brain(self, fmri: torch.Tensor, subject_id: torch.Tensor | None = None) -> torch.Tensor:
+        return self.encoder(fmri, subject_id=subject_id)
 
-    def forward(self, fmri: torch.Tensor) -> torch.Tensor:
-        scene = self.encode_brain(fmri)
+    def forward(self, fmri: torch.Tensor, subject_id: torch.Tensor | None = None) -> torch.Tensor:
+        scene = self.encode_brain(fmri, subject_id=subject_id)
         return self.image_head(scene)
+
+    def forward_with_reconstruction(
+        self,
+        fmri: torch.Tensor,
+        subject_id: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
+        scene = self.encode_brain(fmri, subject_id=subject_id)
+        outputs = {"image": self.image_head(scene), "scene": scene}
+        if self.clip_token_head is not None and self.clip_token_shape is not None:
+            num_tokens, token_dim = self.clip_token_shape
+            outputs["clip_tokens"] = self.clip_token_head(scene).reshape(fmri.shape[0], num_tokens, token_dim)
+        return outputs

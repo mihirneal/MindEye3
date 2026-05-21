@@ -35,7 +35,7 @@ NSDSampleRef = NSDTrialRef | NSDAveragedRef
 
 
 class StimulusEmbeddingCache:
-    """Torch-backed image embedding cache keyed by NSD 73K stimulus id."""
+    """Torch-backed stimulus feature cache keyed by NSD 73K stimulus id."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -58,15 +58,29 @@ class StimulusEmbeddingCache:
             raise ValueError("stimulus_ids and embeddings must have the same length")
 
         self.embedding_dim = int(embeddings_tensor.shape[1])
-        self._by_stimulus_id = {
-            int(stimulus_id): torch.nn.functional.normalize(embedding.float(), dim=0)
-            for stimulus_id, embedding in zip(ids_tensor.tolist(), embeddings_tensor)
-        }
+        clip_tokens = payload.get("clip_tokens")
+        clip_tokens_tensor = None if clip_tokens is None else torch.as_tensor(clip_tokens, dtype=torch.float32)
+        if clip_tokens_tensor is not None and clip_tokens_tensor.shape[0] != ids_tensor.shape[0]:
+            raise ValueError("stimulus_ids and clip_tokens must have the same length")
+
+        self.clip_token_shape: tuple[int, int] | None = None
+        if clip_tokens_tensor is not None:
+            if clip_tokens_tensor.ndim != 3:
+                raise ValueError("clip_tokens must be a rank-3 tensor of shape [images, tokens, dim]")
+            self.clip_token_shape = (int(clip_tokens_tensor.shape[1]), int(clip_tokens_tensor.shape[2]))
+
+        self._by_stimulus_id: dict[int, StimulusEmbedding] = {}
+        for index, (stimulus_id, embedding) in enumerate(zip(ids_tensor.tolist(), embeddings_tensor)):
+            clip_token_value = None if clip_tokens_tensor is None else clip_tokens_tensor[index].float()
+            self._by_stimulus_id[int(stimulus_id)] = StimulusEmbedding(
+                image=torch.nn.functional.normalize(embedding.float(), dim=0),
+                clip_tokens=clip_token_value,
+            )
 
     def __contains__(self, stimulus_id: int) -> bool:
         return stimulus_id in self._by_stimulus_id
 
-    def __getitem__(self, stimulus_id: int) -> torch.Tensor:
+    def __getitem__(self, stimulus_id: int) -> StimulusEmbedding:
         return self._by_stimulus_id[stimulus_id]
 
 
@@ -185,7 +199,7 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
                 stimulus_id=sample_ref.stimulus_id,
                 metadata=sample_ref.metadata,
             ),
-            StimulusEmbedding(image=self.embedding_cache[sample_ref.stimulus_id]),
+            self.embedding_cache[sample_ref.stimulus_id],
         )
 
     @property
@@ -279,9 +293,21 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
         if topk <= 0:
             raise ValueError("ncsnr_topk must be positive")
 
-        if len(self.config.subjects) != 1:
-            raise ValueError("ncsnr_topk currently supports one subject at a time")
-        ncsnr = self.beta_loader.load_ncsnr(self.config.subjects[0])
+        ncsnr_values = [self.beta_loader.load_ncsnr(subject_id) for subject_id in self.config.subjects]
+        lengths = {int(value.numel()) for value in ncsnr_values}
+        if len(lengths) != 1:
+            raise ValueError("ncsnr vectors must have the same length for multi-subject selection")
+
+        stacked = torch.stack(ncsnr_values)
+        aggregation = self.config.ncsnr_aggregation.lower()
+        if aggregation == "mean":
+            ncsnr = stacked.mean(dim=0)
+        elif aggregation == "min":
+            ncsnr = stacked.min(dim=0).values
+        elif aggregation == "max":
+            ncsnr = stacked.max(dim=0).values
+        else:
+            raise ValueError("ncsnr_aggregation must be one of: mean, min, max")
         effective_topk = min(topk, ncsnr.numel())
         return torch.topk(ncsnr, k=effective_topk).indices.sort().values
 

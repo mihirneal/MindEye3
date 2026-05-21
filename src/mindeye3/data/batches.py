@@ -13,6 +13,7 @@ class PairedBatch:
     fmri: torch.Tensor
     stimulus_id: torch.Tensor
     image: torch.Tensor
+    clip_tokens: torch.Tensor | None = None
 
 
 def collate_paired_batch(
@@ -26,4 +27,17 @@ def collate_paired_batch(
             dtype=torch.long,
         ),
         image=torch.stack([embedding.require("image") for _, embedding in items]),
+        clip_tokens=_stack_optional(items, "clip_tokens"),
     )
+
+
+def _stack_optional(
+    items: list[tuple[BrainSample, StimulusEmbedding]],
+    key: str,
+) -> torch.Tensor | None:
+    values = [getattr(embedding, key) for _, embedding in items]
+    if all(value is None for value in values):
+        return None
+    if any(value is None for value in values):
+        raise KeyError(f"Some items are missing stimulus embedding: {key}")
+    return torch.stack([value for value in values if value is not None])

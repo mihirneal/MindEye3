@@ -18,7 +18,10 @@ def build_model(
     config: MindEyeConfig,
     fmri_dim: int | None = None,
     embedding_dim: int | None = None,
+    clip_token_shape: tuple[int, int] | None = None,
 ) -> RetrievalModel:
+    max_config_subject = max(config.data.subjects, default=0)
+    num_subjects = max(config.data.num_subjects, max_config_subject + 1)
     return RetrievalModel(
         fmri_dim=fmri_dim if fmri_dim is not None else config.data.fmri_dim,
         hidden_dim=config.model.hidden_dim,
@@ -26,20 +29,31 @@ def build_model(
         scene_dim=config.model.scene_dim,
         embedding_dim=embedding_dim if embedding_dim is not None else config.data.embedding_dim,
         dropout=config.model.dropout,
+        num_subjects=num_subjects,
+        subject_embedding_dim=config.model.subject_embedding_dim,
+        clip_token_shape=clip_token_shape,
     )
 
 
-def infer_batch_dims(loader: DataLoader[PairedBatch]) -> tuple[int, int]:
+def infer_batch_dims(loader: DataLoader[PairedBatch]) -> tuple[int, int, tuple[int, int] | None]:
     batch = next(iter(loader))
-    return int(batch.fmri.shape[-1]), int(batch.image.shape[-1])
+    clip_token_shape = None
+    if batch.clip_tokens is not None:
+        clip_token_shape = (int(batch.clip_tokens.shape[1]), int(batch.clip_tokens.shape[2]))
+    return int(batch.fmri.shape[-1]), int(batch.image.shape[-1]), clip_token_shape
 
 
 def train(config: MindEyeConfig) -> Path:
     torch.manual_seed(config.seed)
     device = torch.device(config.training.device)
     train_loader, eval_loader = create_dataloaders(config.data, seed=config.seed)
-    fmri_dim, embedding_dim = infer_batch_dims(train_loader)
-    model = build_model(config, fmri_dim=fmri_dim, embedding_dim=embedding_dim).to(device)
+    fmri_dim, embedding_dim, clip_token_shape = infer_batch_dims(train_loader)
+    model = build_model(
+        config,
+        fmri_dim=fmri_dim,
+        embedding_dim=embedding_dim,
+        clip_token_shape=clip_token_shape,
+    ).to(device)
     criterion = SymmetricContrastiveLoss(config.training.temperature)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -58,8 +72,17 @@ def train(config: MindEyeConfig) -> Path:
         for batch in train_loader:
             fmri = batch.fmri.to(device)
             image = batch.image.to(device)
-            prediction = model(fmri)
-            loss = criterion(prediction, image)
+            subject_id = batch.subject_id.to(device)
+            outputs = model.forward_with_reconstruction(fmri, subject_id=subject_id)
+            loss = config.training.retrieval_loss_weight * criterion(outputs["image"], image)
+            if config.model.clip_token_loss_weight > 0.0:
+                if batch.clip_tokens is None or "clip_tokens" not in outputs:
+                    raise ValueError("clip_token_loss_weight requires clip_tokens in the stimulus cache")
+                clip_tokens = batch.clip_tokens.to(device)
+                loss = loss + config.model.clip_token_loss_weight * torch.nn.functional.mse_loss(
+                    outputs["clip_tokens"],
+                    clip_tokens,
+                )
 
             optimizer.zero_grad(set_to_none=True)
             loss.backward()

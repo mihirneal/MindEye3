@@ -17,6 +17,7 @@ class BrainSample:
 @dataclass(frozen=True)
 class StimulusEmbedding:
     image: torch.Tensor | None = None
+    clip_tokens: torch.Tensor | None = None
     text: torch.Tensor | None = None
     video: torch.Tensor | None = None
     audio: torch.Tensor | None = None
@@ -26,4 +27,3 @@ class StimulusEmbedding:
         if value is None:
             raise KeyError(f"Missing stimulus embedding: {key}")
         return value
-
