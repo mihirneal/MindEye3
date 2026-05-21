@@ -145,7 +145,11 @@ def summarize(sweep_root: Path, jobs: list[dict[str, Any]]) -> None:
         checkpoint_path = sweep_root / "runs" / job["name"] / "best_checkpoint.pt"
         if not checkpoint_path.exists():
             continue
-        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        except RuntimeError as exc:
+            print(f"skipping unreadable checkpoint {checkpoint_path}: {exc}", file=sys.stderr)
+            continue
         row = {
             "name": job["name"],
             "epoch": checkpoint["epoch"],
