@@ -13,7 +13,7 @@ from mindeye3.training import train
 def test_cli_parsers_accept_required_args() -> None:
     train_args = build_train_parser().parse_args(["--config", "configs/v0_synthetic.yaml"])
     eval_args = build_eval_parser().parse_args(
-        ["--config", "configs/v0_synthetic.yaml", "--checkpoint", "checkpoint.pt"]
+        ["--config", "configs/v0_synthetic.yaml", "--checkpoint", "checkpoint.pt", "--split", "both"]
     )
     embedding_args = build_embeddings_parser().parse_args(
         ["--stimuli", "nsd_stimuli.hdf5", "--output", "cache.pt", "--limit", "10"]
@@ -21,6 +21,7 @@ def test_cli_parsers_accept_required_args() -> None:
 
     assert train_args.config == "configs/v0_synthetic.yaml"
     assert eval_args.checkpoint == "checkpoint.pt"
+    assert eval_args.split == "both"
     assert embedding_args.limit == 10
 
 

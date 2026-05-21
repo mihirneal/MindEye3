@@ -14,6 +14,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Evaluate a MindEye3 retrieval checkpoint.")
     parser.add_argument("--config", required=True, help="Path to a YAML config file.")
     parser.add_argument("--checkpoint", required=True, help="Path to a checkpoint file.")
+    parser.add_argument(
+        "--split",
+        choices=["eval", "train", "both"],
+        default="eval",
+        help="Dataset split to evaluate.",
+    )
     return parser
 
 
@@ -21,14 +27,18 @@ def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
     device = torch.device(config.training.device)
-    _, eval_loader = create_dataloaders(config.data, seed=config.seed)
-    fmri_dim, embedding_dim = infer_batch_dims(eval_loader)
+    train_loader, eval_loader = create_dataloaders(config.data, seed=config.seed)
+    reference_loader = train_loader if args.split == "train" else eval_loader
+    fmri_dim, embedding_dim = infer_batch_dims(reference_loader)
     model = build_model(config, fmri_dim=fmri_dim, embedding_dim=embedding_dim).to(device)
     checkpoint = load_checkpoint(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model"])
-    metrics = evaluate_model(model, eval_loader, config.evaluation.top_k, device)
-    for key, value in metrics.items():
-        print(f"{key}: {value:.4f}")
+    loaders = {"train": train_loader, "eval": eval_loader}
+    splits = ["train", "eval"] if args.split == "both" else [args.split]
+    for split in splits:
+        metrics = evaluate_model(model, loaders[split], config.evaluation.top_k, device)
+        for key, value in metrics.items():
+            print(f"{split}_{key}: {value:.4f}")
 
 
 if __name__ == "__main__":
