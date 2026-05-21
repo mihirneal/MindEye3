@@ -9,7 +9,7 @@ data:
   beta_version: betas_fithrf_GLMdenoise_RR
   embedding_cache: /teamspace/studios/this_studio/nsd/cache/embeddings/openclip_vith14.pt
   max_samples:
-  max_cached_sessions: 2
+  max_cached_sessions: 64
   normalize_fmri: true
   include_missing_data: false
   average_repeats: true

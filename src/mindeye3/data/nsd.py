@@ -82,6 +82,7 @@ class NSDBetaLoader:
         self.beta_space = beta_space
         self.beta_version = beta_version
         self.max_cached_sessions = max_cached_sessions
+        self.feature_indices: torch.Tensor | None = None
         self._cache: OrderedDict[tuple[int, int], torch.Tensor] = OrderedDict()
 
     def session_exists(self, subject_id: int, session: int) -> bool:
@@ -130,7 +131,10 @@ class NSDBetaLoader:
         hemispheres = [self._load_beta_file(path) for path in self._hemisphere_paths(subject_id, session)]
         if hemispheres[0].shape[0] != hemispheres[1].shape[0]:
             raise ValueError(f"hemisphere trial counts differ for subj{subject_id:02d} session {session}")
-        return torch.cat(hemispheres, dim=1)
+        session_betas = torch.cat(hemispheres, dim=1)
+        if self.feature_indices is not None:
+            session_betas = session_betas[:, self.feature_indices]
+        return session_betas
 
     def _load_beta_file(self, path: Path) -> torch.Tensor:
         if path.exists():
@@ -162,6 +166,7 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
         self.trials = self._build_trials()
         self.samples: list[NSDSampleRef] = self._build_samples()
         self.feature_indices = self._build_feature_indices()
+        self.beta_loader.feature_indices = self.feature_indices
         if not self.samples:
             raise ValueError("No NSD trials matched the requested subjects, betas, and embedding cache")
 
@@ -171,8 +176,6 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
     def __getitem__(self, index: int) -> tuple[BrainSample, StimulusEmbedding]:
         sample_ref = self.samples[index]
         fmri = self._load_sample_fmri(sample_ref)
-        if self.feature_indices is not None:
-            fmri = fmri[self.feature_indices]
         if self.config.normalize_fmri:
             fmri = _zscore(fmri)
         return (
