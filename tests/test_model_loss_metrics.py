@@ -1,7 +1,7 @@
 import torch
 
 from mindeye3.losses import SymmetricContrastiveLoss
-from mindeye3.metrics import topk_retrieval_accuracy
+from mindeye3.metrics import candidate_retrieval_accuracy, topk_retrieval_accuracy
 from mindeye3.models import BrainEncoder, RetrievalModel
 
 
@@ -35,3 +35,17 @@ def test_topk_retrieval_accuracy() -> None:
 
     assert metrics["top1"] == 1.0
     assert metrics["top2"] == 1.0
+
+
+def test_candidate_retrieval_accuracy() -> None:
+    embeddings = torch.eye(5)
+    metrics = candidate_retrieval_accuracy(
+        embeddings,
+        embeddings,
+        pool_size=3,
+        top_k=[1],
+        num_repeats=2,
+        seed=3,
+    )
+
+    assert metrics["top1"] == 1.0

@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from mindeye3.data.batches import PairedBatch
-from mindeye3.metrics import topk_retrieval_accuracy
+from mindeye3.metrics import candidate_retrieval_accuracy, topk_retrieval_accuracy
 from mindeye3.models import RetrievalModel
 
 
@@ -34,6 +34,9 @@ def evaluate_model(
     loader: DataLoader[PairedBatch],
     top_k: list[int],
     device: torch.device,
+    candidate_pool_size: int | None = None,
+    candidate_repeats: int = 30,
+    candidate_seed: int = 0,
 ) -> dict[str, float]:
     predictions, targets, stimulus_ids = collect_embeddings(model, loader, device)
     metrics = {f"trial_{key}": value for key, value in topk_retrieval_accuracy(predictions, targets, top_k).items()}
@@ -41,6 +44,33 @@ def evaluate_model(
     metrics.update(
         {f"image_{key}": value for key, value in topk_retrieval_accuracy(image_predictions, image_targets, top_k).items()}
     )
+    if candidate_pool_size is not None:
+        metrics.update(
+            {
+                f"mindeye2_brain_to_image_{key}": value
+                for key, value in candidate_retrieval_accuracy(
+                    image_predictions,
+                    image_targets,
+                    pool_size=candidate_pool_size,
+                    top_k=[1],
+                    num_repeats=candidate_repeats,
+                    seed=candidate_seed,
+                ).items()
+            }
+        )
+        metrics.update(
+            {
+                f"mindeye2_image_to_brain_{key}": value
+                for key, value in candidate_retrieval_accuracy(
+                    image_targets,
+                    image_predictions,
+                    pool_size=candidate_pool_size,
+                    top_k=[1],
+                    num_repeats=candidate_repeats,
+                    seed=candidate_seed,
+                ).items()
+            }
+        )
     return metrics
 
 
