@@ -33,6 +33,7 @@ class DataConfig:
 @dataclass(frozen=True)
 class ModelConfig:
     hidden_dim: int = 128
+    hidden_layers: int = 1
     scene_dim: int = 64
     dropout: float = 0.0
 
@@ -41,6 +42,8 @@ class ModelConfig:
 class TrainingConfig:
     epochs: int = 4
     learning_rate: float = 1e-3
+    min_learning_rate: float = 0.0
+    lr_schedule: str = "none"
     weight_decay: float = 1e-4
     temperature: float = 0.07
     device: str = "cpu"

@@ -20,6 +20,7 @@ class RetrievalModel(nn.Module):
         self,
         fmri_dim: int,
         hidden_dim: int,
+        hidden_layers: int,
         scene_dim: int,
         embedding_dim: int,
         dropout: float = 0.0,
@@ -28,6 +29,7 @@ class RetrievalModel(nn.Module):
         self.encoder = BrainEncoder(
             fmri_dim=fmri_dim,
             hidden_dim=hidden_dim,
+            hidden_layers=hidden_layers,
             scene_dim=scene_dim,
             dropout=dropout,
         )
@@ -39,4 +41,3 @@ class RetrievalModel(nn.Module):
     def forward(self, fmri: torch.Tensor) -> torch.Tensor:
         scene = self.encode_brain(fmri)
         return self.image_head(scene)
-

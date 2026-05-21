@@ -9,18 +9,28 @@ class BrainEncoder(nn.Module):
         self,
         fmri_dim: int,
         hidden_dim: int,
+        hidden_layers: int,
         scene_dim: int,
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(fmri_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, scene_dim),
-        )
+        if hidden_layers < 1:
+            raise ValueError("hidden_layers must be at least 1")
+
+        layers: list[nn.Module] = []
+        input_dim = fmri_dim
+        for _ in range(hidden_layers):
+            layers.extend(
+                [
+                    nn.Linear(input_dim, hidden_dim),
+                    nn.LayerNorm(hidden_dim),
+                    nn.GELU(),
+                    nn.Dropout(dropout),
+                ]
+            )
+            input_dim = hidden_dim
+        layers.append(nn.Linear(input_dim, scene_dim))
+        self.network = nn.Sequential(*layers)
 
     def forward(self, fmri: torch.Tensor) -> torch.Tensor:
         return self.network(fmri)
-

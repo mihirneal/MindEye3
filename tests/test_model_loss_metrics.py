@@ -6,14 +6,14 @@ from mindeye3.models import BrainEncoder, RetrievalModel
 
 
 def test_brain_encoder_forward_shape() -> None:
-    encoder = BrainEncoder(fmri_dim=16, hidden_dim=32, scene_dim=8)
+    encoder = BrainEncoder(fmri_dim=16, hidden_dim=32, hidden_layers=2, scene_dim=8)
     output = encoder(torch.randn(4, 16))
 
     assert output.shape == (4, 8)
 
 
 def test_retrieval_model_forward_shape() -> None:
-    model = RetrievalModel(fmri_dim=16, hidden_dim=32, scene_dim=8, embedding_dim=12)
+    model = RetrievalModel(fmri_dim=16, hidden_dim=32, hidden_layers=2, scene_dim=8, embedding_dim=12)
     output = model(torch.randn(4, 16))
 
     assert output.shape == (4, 12)
@@ -35,4 +35,3 @@ def test_topk_retrieval_accuracy() -> None:
 
     assert metrics["top1"] == 1.0
     assert metrics["top2"] == 1.0
-

@@ -22,6 +22,7 @@ def build_model(
     return RetrievalModel(
         fmri_dim=fmri_dim if fmri_dim is not None else config.data.fmri_dim,
         hidden_dim=config.model.hidden_dim,
+        hidden_layers=config.model.hidden_layers,
         scene_dim=config.model.scene_dim,
         embedding_dim=embedding_dim if embedding_dim is not None else config.data.embedding_dim,
         dropout=config.model.dropout,
@@ -45,6 +46,7 @@ def train(config: MindEyeConfig) -> Path:
         lr=config.training.learning_rate,
         weight_decay=config.training.weight_decay,
     )
+    scheduler = build_scheduler(config, optimizer)
 
     global_step = 0
     latest_metrics: dict[str, float] = {}
@@ -88,6 +90,8 @@ def train(config: MindEyeConfig) -> Path:
                 metrics=latest_metrics,
             )
             print(f"wrote best checkpoint: {best_checkpoint_path} {config.training.best_metric}={best_metric_value:.3f}")
+        if scheduler is not None:
+            scheduler.step()
 
     checkpoint_path = Path(config.output_dir) / "checkpoint.pt"
     save_checkpoint(
@@ -100,3 +104,19 @@ def train(config: MindEyeConfig) -> Path:
     )
     print(f"wrote checkpoint: {checkpoint_path}")
     return checkpoint_path
+
+
+def build_scheduler(
+    config: MindEyeConfig,
+    optimizer: torch.optim.Optimizer,
+) -> torch.optim.lr_scheduler.LRScheduler | None:
+    schedule = config.training.lr_schedule.lower()
+    if schedule in {"", "none"}:
+        return None
+    if schedule == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=config.training.epochs,
+            eta_min=config.training.min_learning_rate,
+        )
+    raise ValueError(f"Unknown lr_schedule {config.training.lr_schedule!r}")
