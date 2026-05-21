@@ -58,6 +58,18 @@ def test_symmetric_contrastive_loss_is_lower_for_matching_pairs() -> None:
     assert loss_fn(matching, target) < loss_fn(mismatched, target)
 
 
+def test_symmetric_contrastive_loss_supports_multi_positive_ids() -> None:
+    loss_fn = SymmetricContrastiveLoss(temperature=0.1)
+    target = torch.eye(4)
+    predicted = target.clone()
+    positive_ids = torch.tensor([10, 10, 20, 30])
+
+    multi_positive_loss = loss_fn(predicted, target, positive_ids=positive_ids)
+    single_positive_loss = loss_fn(predicted, target)
+
+    assert multi_positive_loss < single_positive_loss
+
+
 def test_topk_retrieval_accuracy() -> None:
     embeddings = torch.eye(4)
     metrics = topk_retrieval_accuracy(embeddings, embeddings, top_k=[1, 2])

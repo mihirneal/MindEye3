@@ -73,8 +73,13 @@ def train(config: MindEyeConfig) -> Path:
             fmri = batch.fmri.to(device)
             image = batch.image.to(device)
             subject_id = batch.subject_id.to(device)
+            stimulus_id = batch.stimulus_id.to(device)
             outputs = model.forward_with_reconstruction(fmri, subject_id=subject_id)
-            loss = config.training.retrieval_loss_weight * criterion(outputs["image"], image)
+            loss = config.training.retrieval_loss_weight * criterion(
+                outputs["image"],
+                image,
+                positive_ids=stimulus_id,
+            )
             if config.model.clip_token_loss_weight > 0.0:
                 if batch.clip_tokens is None or "clip_tokens" not in outputs:
                     raise ValueError("clip_token_loss_weight requires clip_tokens in the stimulus cache")
