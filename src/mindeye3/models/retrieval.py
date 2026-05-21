@@ -41,10 +41,14 @@ class RetrievalModel(nn.Module):
         self.image_head = ProjectionHead(scene_dim, embedding_dim)
         self.clip_token_shape = clip_token_shape
         if clip_token_shape is None:
+            self.clip_token_queries: nn.Parameter | None = None
+            self.clip_token_norm: nn.LayerNorm | None = None
             self.clip_token_head: nn.Linear | None = None
         else:
             num_tokens, token_dim = clip_token_shape
-            self.clip_token_head = nn.Linear(scene_dim, num_tokens * token_dim)
+            self.clip_token_queries = nn.Parameter(torch.randn(num_tokens, scene_dim) * 0.02)
+            self.clip_token_norm = nn.LayerNorm(scene_dim)
+            self.clip_token_head = nn.Linear(scene_dim, token_dim)
 
     def encode_brain(self, fmri: torch.Tensor, subject_id: torch.Tensor | None = None) -> torch.Tensor:
         return self.encoder(fmri, subject_id=subject_id)
@@ -60,7 +64,11 @@ class RetrievalModel(nn.Module):
     ) -> dict[str, torch.Tensor]:
         scene = self.encode_brain(fmri, subject_id=subject_id)
         outputs = {"image": self.image_head(scene), "scene": scene}
-        if self.clip_token_head is not None and self.clip_token_shape is not None:
-            num_tokens, token_dim = self.clip_token_shape
-            outputs["clip_tokens"] = self.clip_token_head(scene).reshape(fmri.shape[0], num_tokens, token_dim)
+        if (
+            self.clip_token_head is not None
+            and self.clip_token_norm is not None
+            and self.clip_token_queries is not None
+        ):
+            token_state = scene[:, None, :] + self.clip_token_queries[None, :, :]
+            outputs["clip_tokens"] = self.clip_token_head(self.clip_token_norm(token_state))
         return outputs
