@@ -26,6 +26,7 @@ class RetrievalModel(nn.Module):
         dropout: float = 0.0,
         num_subjects: int = 0,
         subject_embedding_dim: int = 0,
+        subject_input_adapter: bool = False,
         clip_token_shape: tuple[int, int] | None = None,
     ) -> None:
         super().__init__()
@@ -37,6 +38,7 @@ class RetrievalModel(nn.Module):
             dropout=dropout,
             num_subjects=num_subjects,
             subject_embedding_dim=subject_embedding_dim,
+            subject_input_adapter=subject_input_adapter,
         )
         self.image_head = ProjectionHead(scene_dim, embedding_dim)
         self.clip_token_shape = clip_token_shape

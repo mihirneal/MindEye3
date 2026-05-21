@@ -25,6 +25,7 @@ model:
   scene_dim: 1536
   dropout: 0.6
   subject_embedding_dim: 64
+  subject_input_adapter: true
   clip_token_loss_weight: 0.25
 
 training:

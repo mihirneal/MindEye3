@@ -39,6 +39,7 @@ class ModelConfig:
     scene_dim: int = 64
     dropout: float = 0.0
     subject_embedding_dim: int = 0
+    subject_input_adapter: bool = False
     clip_token_loss_weight: float = 0.0
 
 

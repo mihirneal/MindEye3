@@ -31,6 +31,7 @@ def build_model(
         dropout=config.model.dropout,
         num_subjects=num_subjects,
         subject_embedding_dim=config.model.subject_embedding_dim,
+        subject_input_adapter=config.model.subject_input_adapter,
         clip_token_shape=clip_token_shape,
     )
 

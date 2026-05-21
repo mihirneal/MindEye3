@@ -26,6 +26,20 @@ def test_brain_encoder_subject_conditioning() -> None:
     assert output.shape == (4, 8)
 
 
+def test_brain_encoder_subject_input_adapter() -> None:
+    encoder = BrainEncoder(
+        fmri_dim=16,
+        hidden_dim=32,
+        hidden_layers=2,
+        scene_dim=8,
+        num_subjects=3,
+        subject_input_adapter=True,
+    )
+    output = encoder(torch.randn(4, 16), subject_id=torch.tensor([0, 1, 2, 1]))
+
+    assert output.shape == (4, 8)
+
+
 def test_retrieval_model_forward_shape() -> None:
     model = RetrievalModel(fmri_dim=16, hidden_dim=32, hidden_layers=2, scene_dim=8, embedding_dim=12)
     output = model(torch.randn(4, 16))

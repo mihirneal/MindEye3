@@ -14,12 +14,23 @@ class BrainEncoder(nn.Module):
         dropout: float = 0.0,
         num_subjects: int = 0,
         subject_embedding_dim: int = 0,
+        subject_input_adapter: bool = False,
     ) -> None:
         super().__init__()
         if hidden_layers < 1:
             raise ValueError("hidden_layers must be at least 1")
         if subject_embedding_dim < 0:
             raise ValueError("subject_embedding_dim must be non-negative")
+
+        self.subject_gain: nn.Embedding | None = None
+        self.subject_bias: nn.Embedding | None = None
+        if subject_input_adapter:
+            if num_subjects <= 0:
+                raise ValueError("num_subjects must be positive when subject input adapters are enabled")
+            self.subject_gain = nn.Embedding(num_subjects, fmri_dim)
+            self.subject_bias = nn.Embedding(num_subjects, fmri_dim)
+            nn.init.zeros_(self.subject_gain.weight)
+            nn.init.zeros_(self.subject_bias.weight)
 
         self.subject_embedding: nn.Embedding | None = None
         if subject_embedding_dim > 0:
@@ -43,6 +54,12 @@ class BrainEncoder(nn.Module):
         self.network = nn.Sequential(*layers)
 
     def forward(self, fmri: torch.Tensor, subject_id: torch.Tensor | None = None) -> torch.Tensor:
+        if self.subject_gain is not None and self.subject_bias is not None:
+            if subject_id is None:
+                raise ValueError("subject_id is required when subject input adapters are enabled")
+            gain = self.subject_gain(subject_id.long())
+            bias = self.subject_bias(subject_id.long())
+            fmri = fmri * (1.0 + gain) + bias
         if self.subject_embedding is not None:
             if subject_id is None:
                 raise ValueError("subject_id is required when subject conditioning is enabled")

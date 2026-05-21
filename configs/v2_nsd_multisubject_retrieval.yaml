@@ -25,6 +25,7 @@ model:
   scene_dim: 1024
   dropout: 0.6
   subject_embedding_dim: 64
+  subject_input_adapter: true
 
 training:
   epochs: 30
