@@ -80,6 +80,22 @@ def test_brain_token_encoder_forward_shape() -> None:
     assert output.shape == (4, 8)
 
 
+def test_brain_token_encoder_can_use_feature_groups() -> None:
+    encoder = BrainTokenEncoder(
+        fmri_dim=6,
+        num_tokens=4,
+        token_dim=16,
+        transformer_layers=1,
+        transformer_heads=4,
+        scene_dim=8,
+        feature_group_ids=torch.tensor([0, 0, 1, 2, 2, 2]),
+    )
+    output = encoder(torch.randn(4, 6))
+
+    assert encoder.num_tokens == 3
+    assert output.shape == (4, 8)
+
+
 def test_retrieval_model_can_use_brain_token_encoder() -> None:
     model = RetrievalModel(
         fmri_dim=17,
@@ -94,6 +110,25 @@ def test_retrieval_model_can_use_brain_token_encoder() -> None:
         brain_transformer_heads=4,
     )
     output = model(torch.randn(4, 17))
+
+    assert output.shape == (4, 12)
+
+
+def test_retrieval_model_can_use_grouped_brain_token_encoder() -> None:
+    model = RetrievalModel(
+        fmri_dim=6,
+        hidden_dim=32,
+        hidden_layers=2,
+        scene_dim=8,
+        embedding_dim=12,
+        encoder_type="brain_tokens",
+        brain_tokens=4,
+        brain_token_dim=16,
+        brain_transformer_layers=1,
+        brain_transformer_heads=4,
+        feature_group_ids=torch.tensor([0, 0, 1, 2, 2, 2]),
+    )
+    output = model(torch.randn(4, 6))
 
     assert output.shape == (4, 12)
 

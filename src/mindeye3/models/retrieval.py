@@ -34,6 +34,7 @@ class RetrievalModel(nn.Module):
         brain_transformer_layers: int = 2,
         brain_transformer_heads: int = 8,
         clip_token_shape: tuple[int, int] | None = None,
+        feature_group_ids: torch.Tensor | None = None,
     ) -> None:
         super().__init__()
         encoder_type = encoder_type.lower()
@@ -60,6 +61,7 @@ class RetrievalModel(nn.Module):
                 num_subjects=num_subjects,
                 subject_embedding_dim=subject_embedding_dim,
                 subject_input_adapter=subject_input_adapter,
+                feature_group_ids=feature_group_ids,
             )
         else:
             raise ValueError("encoder_type must be one of: mlp, brain_tokens")

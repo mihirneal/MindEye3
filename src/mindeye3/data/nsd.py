@@ -180,6 +180,7 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
         self.trials = self._build_trials()
         self.samples: list[NSDSampleRef] = self._build_samples()
         self.feature_indices = self._build_feature_indices()
+        self.feature_group_ids = self._build_feature_group_ids()
         self.beta_loader.feature_indices = self.feature_indices
         if not self.samples:
             raise ValueError("No NSD trials matched the requested subjects, betas, and embedding cache")
@@ -311,6 +312,40 @@ class NSDDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
         effective_topk = min(topk, ncsnr.numel())
         return torch.topk(ncsnr, k=effective_topk).indices.sort().values
 
+    def _build_feature_group_ids(self) -> torch.Tensor | None:
+        grouping = (self.config.feature_grouping or "").lower()
+        if grouping in {"", "none"}:
+            return None
+        if self.config.feature_group_max_features <= 0:
+            raise ValueError("feature_group_max_features must be positive")
+
+        labels = self._load_feature_group_labels(grouping)
+        if self.feature_indices is not None:
+            labels = labels[self.feature_indices]
+        return _split_feature_groups(labels, max_features=self.config.feature_group_max_features)
+
+    def _load_feature_group_labels(self, grouping: str) -> torch.Tensor:
+        atlas_paths = {
+            "streams": ("lh.streams.mgz", "rh.streams.mgz"),
+            "kastner": ("old2/lh.Kastner2015Labels.mgz", "old2/rh.Kastner2015Labels.mgz"),
+            "yeo": (
+                "lh.Yeo_Brainmap_10to14Comp_SpecializationROI.mgz",
+                "rh.Yeo_Brainmap_10to14Comp_SpecializationROI.mgz",
+            ),
+        }
+        if grouping not in atlas_paths:
+            raise ValueError("feature_grouping must be one of: none, streams, kastner, yeo")
+
+        base = self.root / "nsddata" / "freesurfer" / self.config.beta_space / "label"
+        hemispheres: list[torch.Tensor] = []
+        for hemi_index, relative_path in enumerate(atlas_paths[grouping]):
+            labels = _load_surface_label_values(base / relative_path, column=self.config.feature_group_column)
+            labels = labels.long().flatten()
+            if self.config.feature_group_include_hemi:
+                labels = labels * 2 + hemi_index
+            hemispheres.append(labels)
+        return torch.cat(hemispheres, dim=0)
+
 
 def create_nsd_dataloaders(
     config: DataConfig,
@@ -430,6 +465,45 @@ def _load_mgh(path: Path) -> torch.Tensor:
     if data.shape[0] > data.shape[1]:
         data = data.T
     return data.contiguous().float()
+
+
+def _load_surface_label_values(path: Path, column: int) -> torch.Tensor:
+    fixture_path = path.with_suffix(path.suffix + ".pt")
+    if fixture_path.exists():
+        data = torch.load(fixture_path, map_location="cpu", weights_only=False)
+    else:
+        try:
+            import nibabel as nib
+            import numpy as np
+        except ImportError as exc:
+            raise ImportError("Reading NSD atlas .mgz files requires nibabel. Run `uv sync`.") from exc
+        if not path.exists():
+            raise FileNotFoundError(path)
+        data = torch.as_tensor(nib.load(str(path)).get_fdata(dtype=np.float32)).squeeze()
+
+    data = torch.as_tensor(data).squeeze()
+    if data.ndim == 2:
+        if not 0 <= column < data.shape[1]:
+            raise ValueError(f"feature_group_column {column} is out of range for {path} with shape {tuple(data.shape)}")
+        data = data[:, column]
+    if data.ndim != 1:
+        raise ValueError(f"Expected rank-1 surface labels for {path}, got shape {tuple(data.shape)}")
+    return data.long()
+
+
+def _split_feature_groups(labels: torch.Tensor, max_features: int) -> torch.Tensor:
+    if labels.ndim != 1:
+        raise ValueError("feature group labels must be rank-1")
+    if labels.numel() == 0:
+        raise ValueError("feature group labels cannot be empty")
+    group_ids = torch.empty(labels.shape[0], dtype=torch.long)
+    next_group_id = 0
+    for label in torch.unique(labels, sorted=True):
+        positions = torch.nonzero(labels == label, as_tuple=False).flatten()
+        for start in range(0, positions.numel(), max_features):
+            group_ids[positions[start : start + max_features]] = next_group_id
+            next_group_id += 1
+    return group_ids
 
 
 def _load_tensor_beta_fixture(path: Path) -> torch.Tensor:

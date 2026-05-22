@@ -137,6 +137,39 @@ def test_nsd_dataset_selects_multi_subject_ncsnr_topk(tmp_path: Path) -> None:
     assert embedding.require("clip_tokens").shape == (2, 4)
 
 
+def test_nsd_dataset_builds_atlas_feature_groups_after_topk(tmp_path: Path) -> None:
+    root = _write_nsd_fixture(tmp_path, include_repeat=True)
+    label = root / "nsddata" / "freesurfer" / "fsaverage" / "label"
+    label.mkdir(parents=True)
+    torch.save(torch.tensor([2, 2]), label / "lh.streams.mgz.pt")
+    torch.save(torch.tensor([3, 3, 3]), label / "rh.streams.mgz.pt")
+    cache_path = tmp_path / "embeddings.pt"
+    torch.save(
+        {
+            "stimulus_ids": torch.tensor([101, 102, 103]),
+            "embeddings": torch.eye(3),
+        },
+        cache_path,
+    )
+
+    config = DataConfig(
+        name="nsd",
+        root=str(root),
+        embedding_cache=str(cache_path),
+        subjects=[1],
+        average_repeats=True,
+        ncsnr_topk=4,
+        normalize_fmri=False,
+        feature_grouping="streams",
+        feature_group_max_features=2,
+    )
+    dataset = NSDDataset(config)
+
+    assert dataset.feature_group_ids is not None
+    assert dataset.feature_group_ids.shape == (4,)
+    assert dataset.feature_group_ids.max().item() == 2
+
+
 def test_nsd_dataloaders_can_group_batches_by_stimulus(tmp_path: Path) -> None:
     root = _write_nsd_fixture(tmp_path, include_repeat=True)
     shutil.copytree(

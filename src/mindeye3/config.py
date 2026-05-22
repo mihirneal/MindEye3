@@ -22,6 +22,10 @@ class DataConfig:
     average_repeats: bool = False
     ncsnr_topk: int | None = None
     ncsnr_aggregation: str = "mean"
+    feature_grouping: str | None = None
+    feature_group_column: int = 3
+    feature_group_max_features: int = 128
+    feature_group_include_hemi: bool = True
     num_samples: int = 256
     num_subjects: int = 4
     fmri_dim: int = 128

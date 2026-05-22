@@ -7,7 +7,7 @@ from mindeye3.checkpointing import load_checkpoint
 from mindeye3.config import load_config
 from mindeye3.data import create_dataloaders
 from mindeye3.evaluation import evaluate_model
-from mindeye3.training import build_model, infer_batch_dims
+from mindeye3.training import build_model, infer_batch_dims, infer_feature_group_ids
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,11 +48,13 @@ def main(argv: list[str] | None = None) -> None:
     train_loader, eval_loader = create_dataloaders(config.data, seed=config.seed)
     reference_loader = train_loader if args.split == "train" else eval_loader
     fmri_dim, embedding_dim, clip_token_shape = infer_batch_dims(reference_loader)
+    feature_group_ids = infer_feature_group_ids(reference_loader)
     model = build_model(
         config,
         fmri_dim=fmri_dim,
         embedding_dim=embedding_dim,
         clip_token_shape=clip_token_shape,
+        feature_group_ids=feature_group_ids,
     ).to(device)
     checkpoint = load_checkpoint(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model"])

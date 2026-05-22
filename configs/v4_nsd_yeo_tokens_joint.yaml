@@ -1,0 +1,53 @@
+seed: 7
+output_dir: outputs/v4_nsd_yeo_tokens_joint
+
+data:
+  name: nsd
+  root: /teamspace/studios/this_studio/nsd
+  subjects: [1, 2, 5, 7]
+  beta_space: fsaverage
+  beta_version: betas_fithrf_GLMdenoise_RR
+  embedding_cache: /teamspace/studios/this_studio/nsd/cache/embeddings/openclip_bigG14_laion2b_s39b_b160k_tokens.pt
+  max_samples:
+  max_cached_sessions: 256
+  normalize_fmri: true
+  include_missing_data: false
+  average_repeats: true
+  ncsnr_topk: 20000
+  ncsnr_aggregation: mean
+  feature_grouping: yeo
+  feature_group_column: 3
+  feature_group_max_features: 128
+  feature_group_include_hemi: true
+  train_fraction: 0.8
+  batch_size: 96
+  group_batches_by_stimulus: true
+
+model:
+  encoder_type: brain_tokens
+  hidden_dim: 4096
+  hidden_layers: 2
+  scene_dim: 1536
+  dropout: 0.6
+  subject_embedding_dim: 64
+  subject_input_adapter: true
+  brain_tokens: 128
+  brain_token_dim: 256
+  brain_transformer_layers: 2
+  brain_transformer_heads: 8
+  clip_token_loss_weight: 0.25
+
+training:
+  epochs: 30
+  learning_rate: 0.00008
+  min_learning_rate: 0.000001
+  lr_schedule: cosine
+  weight_decay: 0.01
+  temperature: 0.07
+  retrieval_loss_weight: 1.0
+  device: cuda
+  log_every: 25
+  best_metric: image_brain_to_image_top10
+
+evaluation:
+  top_k: [1, 5, 10]

@@ -19,6 +19,7 @@ def build_model(
     fmri_dim: int | None = None,
     embedding_dim: int | None = None,
     clip_token_shape: tuple[int, int] | None = None,
+    feature_group_ids: torch.Tensor | None = None,
 ) -> RetrievalModel:
     max_config_subject = max(config.data.subjects, default=0)
     num_subjects = max(config.data.num_subjects, max_config_subject + 1)
@@ -38,6 +39,7 @@ def build_model(
         brain_transformer_layers=config.model.brain_transformer_layers,
         brain_transformer_heads=config.model.brain_transformer_heads,
         clip_token_shape=clip_token_shape,
+        feature_group_ids=feature_group_ids,
     )
 
 
@@ -49,16 +51,25 @@ def infer_batch_dims(loader: DataLoader[PairedBatch]) -> tuple[int, int, tuple[i
     return int(batch.fmri.shape[-1]), int(batch.image.shape[-1]), clip_token_shape
 
 
+def infer_feature_group_ids(loader: DataLoader[PairedBatch]) -> torch.Tensor | None:
+    dataset = loader.dataset
+    while hasattr(dataset, "dataset"):
+        dataset = dataset.dataset
+    return getattr(dataset, "feature_group_ids", None)
+
+
 def train(config: MindEyeConfig) -> Path:
     torch.manual_seed(config.seed)
     device = torch.device(config.training.device)
     train_loader, eval_loader = create_dataloaders(config.data, seed=config.seed)
     fmri_dim, embedding_dim, clip_token_shape = infer_batch_dims(train_loader)
+    feature_group_ids = infer_feature_group_ids(train_loader)
     model = build_model(
         config,
         fmri_dim=fmri_dim,
         embedding_dim=embedding_dim,
         clip_token_shape=clip_token_shape,
+        feature_group_ids=feature_group_ids,
     ).to(device)
     criterion = SymmetricContrastiveLoss(config.training.temperature)
     optimizer = torch.optim.AdamW(
