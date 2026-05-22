@@ -36,6 +36,22 @@ def test_create_dataloaders_returns_paired_batches() -> None:
     assert eval_batch.fmri.shape[-1] == 16
 
 
+def test_synthetic_dataset_can_emit_clip_tokens() -> None:
+    config = DataConfig(
+        num_samples=20,
+        fmri_dim=16,
+        embedding_dim=12,
+        clip_token_count=5,
+        clip_token_dim=6,
+        batch_size=5,
+    )
+    train_loader, _ = create_dataloaders(config, seed=5)
+    train_batch = next(iter(train_loader))
+
+    assert train_batch.clip_tokens is not None
+    assert train_batch.clip_tokens.shape == (5, 5, 6)
+
+
 def test_nsd_dataset_pairs_betas_with_embedding_cache(tmp_path: Path) -> None:
     root = _write_nsd_fixture(tmp_path)
     cache_path = tmp_path / "embeddings.pt"

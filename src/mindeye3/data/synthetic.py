@@ -19,6 +19,8 @@ class SyntheticBrainDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
         latent = torch.randn(config.num_samples, latent_dim, generator=generator)
         fmri_projection = torch.randn(latent_dim, config.fmri_dim, generator=generator)
         image_projection = torch.randn(latent_dim, config.embedding_dim, generator=generator)
+        if (config.clip_token_count == 0) != (config.clip_token_dim == 0):
+            raise ValueError("clip_token_count and clip_token_dim must either both be positive or both be zero")
 
         fmri = latent @ fmri_projection
         image = latent @ image_projection
@@ -27,6 +29,17 @@ class SyntheticBrainDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
 
         self.fmri = torch.nn.functional.normalize(fmri.float(), dim=-1)
         self.image = torch.nn.functional.normalize(image.float(), dim=-1)
+        self.clip_tokens = None
+        if config.clip_token_count > 0 and config.clip_token_dim > 0:
+            token_projection = torch.randn(
+                latent_dim,
+                config.clip_token_count * config.clip_token_dim,
+                generator=generator,
+            )
+            clip_tokens = latent @ token_projection
+            clip_tokens = clip_tokens.reshape(config.num_samples, config.clip_token_count, config.clip_token_dim)
+            clip_tokens = clip_tokens + config.noise_std * torch.randn(clip_tokens.shape, generator=generator)
+            self.clip_tokens = torch.nn.functional.normalize(clip_tokens.float(), dim=-1)
         self.subject_ids = torch.arange(config.num_samples) % config.num_subjects
         self.stimulus_ids = torch.arange(config.num_samples)
 
@@ -40,7 +53,10 @@ class SyntheticBrainDataset(Dataset[tuple[BrainSample, StimulusEmbedding]]):
                 fmri=self.fmri[index],
                 stimulus_id=int(self.stimulus_ids[index]),
             ),
-            StimulusEmbedding(image=self.image[index]),
+            StimulusEmbedding(
+                image=self.image[index],
+                clip_tokens=None if self.clip_tokens is None else self.clip_tokens[index],
+            ),
         )
 
 

@@ -36,6 +36,7 @@ class BrainTokenEncoder(nn.Module):
             raise ValueError("subject_embedding_dim must be non-negative")
 
         self.fmri_dim = fmri_dim
+        self.token_dim = token_dim
         if feature_group_ids is None:
             self.num_tokens = num_tokens
             self.chunk_size = math.ceil(fmri_dim / num_tokens)
@@ -90,7 +91,7 @@ class BrainTokenEncoder(nn.Module):
         self.norm = nn.LayerNorm(token_dim)
         self.scene = nn.Linear(token_dim, scene_dim)
 
-    def forward(self, fmri: torch.Tensor, subject_id: torch.Tensor | None = None) -> torch.Tensor:
+    def forward_tokens(self, fmri: torch.Tensor, subject_id: torch.Tensor | None = None) -> torch.Tensor:
         if self.subject_gain is not None and self.subject_bias is not None:
             if subject_id is None:
                 raise ValueError("subject_id is required when subject input adapters are enabled")
@@ -115,8 +116,14 @@ class BrainTokenEncoder(nn.Module):
             tokens = tokens + subject[:, None, :]
 
         tokens = self.transformer(tokens)
-        pooled = self.norm(tokens).mean(dim=1)
+        return self.norm(tokens)
+
+    def pool_tokens(self, tokens: torch.Tensor) -> torch.Tensor:
+        pooled = tokens.mean(dim=1)
         return self.scene(pooled)
+
+    def forward(self, fmri: torch.Tensor, subject_id: torch.Tensor | None = None) -> torch.Tensor:
+        return self.pool_tokens(self.forward_tokens(fmri, subject_id=subject_id))
 
 
 def _build_group_feature_index(feature_group_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:

@@ -30,6 +30,8 @@ class DataConfig:
     num_subjects: int = 4
     fmri_dim: int = 128
     embedding_dim: int = 64
+    clip_token_count: int = 0
+    clip_token_dim: int = 0
     noise_std: float = 0.05
     train_fraction: float = 0.8
     batch_size: int = 32
@@ -50,6 +52,9 @@ class ModelConfig:
     brain_transformer_layers: int = 2
     brain_transformer_heads: int = 8
     clip_token_loss_weight: float = 0.0
+    clip_token_decoder: str = "scene_query"
+    clip_token_decoder_layers: int = 2
+    clip_token_decoder_heads: int = 8
 
 
 @dataclass(frozen=True)
@@ -69,6 +74,9 @@ class TrainingConfig:
 @dataclass(frozen=True)
 class EvaluationConfig:
     top_k: list[int] = field(default_factory=lambda: [1, 5, 10])
+    candidate_pool_size: int | None = None
+    candidate_repeats: int = 30
+    candidate_seed: int = 0
 
 
 @dataclass(frozen=True)

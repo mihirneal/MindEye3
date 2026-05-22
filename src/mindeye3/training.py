@@ -39,6 +39,9 @@ def build_model(
         brain_transformer_layers=config.model.brain_transformer_layers,
         brain_transformer_heads=config.model.brain_transformer_heads,
         clip_token_shape=clip_token_shape,
+        clip_token_decoder=config.model.clip_token_decoder,
+        clip_token_decoder_layers=config.model.clip_token_decoder_layers,
+        clip_token_decoder_heads=config.model.clip_token_decoder_heads,
         feature_group_ids=feature_group_ids,
     )
 
@@ -117,7 +120,15 @@ def train(config: MindEyeConfig) -> Path:
                 print(f"epoch={epoch} step={global_step} loss={average_loss:.4f}")
                 running_loss = 0.0
 
-        latest_metrics = evaluate_model(model, eval_loader, config.evaluation.top_k, device)
+        latest_metrics = evaluate_model(
+            model,
+            eval_loader,
+            config.evaluation.top_k,
+            device,
+            candidate_pool_size=config.evaluation.candidate_pool_size,
+            candidate_repeats=config.evaluation.candidate_repeats,
+            candidate_seed=config.evaluation.candidate_seed,
+        )
         metric_text = " ".join(f"{key}={value:.3f}" for key, value in latest_metrics.items())
         print(f"epoch={epoch} eval {metric_text}")
         metric_value = latest_metrics.get(config.training.best_metric)

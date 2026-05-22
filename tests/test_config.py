@@ -8,4 +8,4 @@ def test_load_default_config() -> None:
     assert config.data.fmri_dim == 128
     assert config.data.embedding_dim == 64
     assert config.training.device == "cpu"
-
+    assert config.evaluation.candidate_pool_size is None

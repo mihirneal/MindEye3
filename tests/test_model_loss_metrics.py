@@ -63,6 +63,46 @@ def test_retrieval_model_can_predict_clip_tokens() -> None:
     assert outputs["clip_tokens"].shape == (4, 5, 6)
 
 
+def test_retrieval_model_can_predict_clip_tokens_with_bit_cross_attention() -> None:
+    model = RetrievalModel(
+        fmri_dim=16,
+        hidden_dim=32,
+        hidden_layers=2,
+        scene_dim=8,
+        embedding_dim=12,
+        encoder_type="brain_tokens",
+        brain_tokens=4,
+        brain_token_dim=16,
+        brain_transformer_layers=1,
+        brain_transformer_heads=4,
+        clip_token_shape=(5, 6),
+        clip_token_decoder="bit_cross_attention",
+        clip_token_decoder_layers=1,
+        clip_token_decoder_heads=4,
+    )
+    outputs = model.forward_with_reconstruction(torch.randn(4, 16))
+
+    assert outputs["image"].shape == (4, 12)
+    assert outputs["clip_tokens"].shape == (4, 5, 6)
+
+
+def test_bit_cross_attention_requires_brain_tokens() -> None:
+    try:
+        RetrievalModel(
+            fmri_dim=16,
+            hidden_dim=32,
+            hidden_layers=2,
+            scene_dim=8,
+            embedding_dim=12,
+            clip_token_shape=(5, 6),
+            clip_token_decoder="bit_cross_attention",
+        )
+    except ValueError as exc:
+        assert "encoder_type='brain_tokens'" in str(exc)
+    else:
+        raise AssertionError("Expected bit_cross_attention without brain token encoder to fail")
+
+
 def test_brain_token_encoder_forward_shape() -> None:
     encoder = BrainTokenEncoder(
         fmri_dim=17,
@@ -77,6 +117,22 @@ def test_brain_token_encoder_forward_shape() -> None:
     )
     output = encoder(torch.randn(4, 17), subject_id=torch.tensor([0, 1, 2, 1]))
 
+    assert output.shape == (4, 8)
+
+
+def test_brain_token_encoder_can_return_cluster_tokens() -> None:
+    encoder = BrainTokenEncoder(
+        fmri_dim=17,
+        num_tokens=4,
+        token_dim=16,
+        transformer_layers=1,
+        transformer_heads=4,
+        scene_dim=8,
+    )
+    tokens = encoder.forward_tokens(torch.randn(4, 17))
+    output = encoder.pool_tokens(tokens)
+
+    assert tokens.shape == (4, 4, 16)
     assert output.shape == (4, 8)
 
 

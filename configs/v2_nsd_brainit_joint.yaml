@@ -20,13 +20,21 @@ data:
   group_batches_by_stimulus: true
 
 model:
+  encoder_type: brain_tokens
   hidden_dim: 4096
   hidden_layers: 2
   scene_dim: 1536
   dropout: 0.6
   subject_embedding_dim: 64
   subject_input_adapter: true
+  brain_tokens: 128
+  brain_token_dim: 256
+  brain_transformer_layers: 2
+  brain_transformer_heads: 8
   clip_token_loss_weight: 0.25
+  clip_token_decoder: bit_cross_attention
+  clip_token_decoder_layers: 2
+  clip_token_decoder_heads: 8
 
 training:
   epochs: 30
@@ -38,7 +46,10 @@ training:
   retrieval_loss_weight: 1.0
   device: cuda
   log_every: 25
-  best_metric: image_brain_to_image_top10
+  best_metric: mindeye2_brain_to_image_top1
 
 evaluation:
   top_k: [1, 5, 10]
+  candidate_pool_size: 300
+  candidate_repeats: 30
+  candidate_seed: 7

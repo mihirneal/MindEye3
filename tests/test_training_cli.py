@@ -109,3 +109,57 @@ def test_training_smoke_writes_checkpoint(tmp_path: Path) -> None:
     assert checkpoint["epoch"] == 1
     assert "trial_top1" in checkpoint["metrics"]
     assert "image_top1" in checkpoint["metrics"]
+
+
+def test_joint_reconstruction_training_smoke_writes_checkpoint(tmp_path: Path) -> None:
+    config_path = tmp_path / "joint_smoke.yaml"
+    config = {
+        "seed": 11,
+        "output_dir": str(tmp_path / "joint_outputs"),
+        "data": {
+            "name": "synthetic",
+            "num_samples": 32,
+            "num_subjects": 2,
+            "fmri_dim": 16,
+            "embedding_dim": 12,
+            "clip_token_count": 5,
+            "clip_token_dim": 6,
+            "noise_std": 0.05,
+            "train_fraction": 0.75,
+            "batch_size": 8,
+        },
+        "model": {
+            "encoder_type": "brain_tokens",
+            "hidden_dim": 24,
+            "scene_dim": 10,
+            "dropout": 0.0,
+            "brain_tokens": 4,
+            "brain_token_dim": 16,
+            "brain_transformer_layers": 1,
+            "brain_transformer_heads": 4,
+            "clip_token_loss_weight": 0.25,
+            "clip_token_decoder": "bit_cross_attention",
+            "clip_token_decoder_layers": 1,
+            "clip_token_decoder_heads": 4,
+        },
+        "training": {
+            "epochs": 1,
+            "learning_rate": 0.001,
+            "weight_decay": 0.0,
+            "temperature": 0.1,
+            "device": "cpu",
+            "log_every": 0,
+            "best_metric": "image_top3",
+        },
+        "evaluation": {
+            "top_k": [1, 3],
+        },
+    }
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    checkpoint_path = train(load_config(config_path))
+    checkpoint = load_checkpoint(checkpoint_path)
+
+    assert checkpoint_path.exists()
+    assert checkpoint["epoch"] == 1
+    assert "image_top1" in checkpoint["metrics"]

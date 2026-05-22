@@ -15,7 +15,8 @@ the current MindEye-style retrieval loop alive as a stabilizer and comparison po
 
 1. Train a multi-subject, subject-conditioned retrieval backbone on fsaverage betas.
 2. Add Brain-IT-style semantic reconstruction supervision by predicting spatial
-   OpenCLIP tokens, not only a pooled CLIP vector.
+   OpenCLIP tokens, not only a pooled CLIP vector. The current joint path uses
+   image-feature query tokens that cross-attend to functional brain tokens.
 3. Add a low-level branch that predicts VGG feature maps for DIP coarse layouts.
 4. Condition an open diffusion backend from the predicted semantic tokens, then
    initialize/refine from the low-level branch.
@@ -35,6 +36,8 @@ visual-token based, not prompt-only text conditioning.
 - `configs/v2_nsd_multisubject_retrieval.yaml` trains a stronger subject-conditioned
   retrieval backbone across subjects 1, 2, 5, and 7.
 - `configs/v2_nsd_brainit_joint.yaml` enables joint pooled-CLIP retrieval plus
-  spatial-CLIP-token prediction when the cache contains `clip_tokens`.
+  spatial-CLIP-token prediction when the cache contains `clip_tokens`, using a
+  brain-token encoder and BIT-style cross-attention reconstruction decoder. It
+  checkpoints on the 300-way MindEye2-style brain-to-image retrieval metric.
 - `mindeye3-build-nsd-embeddings --include-clip-tokens` can build the first semantic
   token cache for the joint run.

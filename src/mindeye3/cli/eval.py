@@ -29,13 +29,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--candidate-repeats",
         type=int,
-        default=30,
+        default=None,
         help="Number of random candidate pools to average when candidate-pool evaluation is enabled.",
     )
     parser.add_argument(
         "--candidate-seed",
         type=int,
-        default=0,
+        default=None,
         help="Random seed for candidate-pool evaluation.",
     )
     return parser
@@ -58,6 +58,15 @@ def main(argv: list[str] | None = None) -> None:
     ).to(device)
     checkpoint = load_checkpoint(args.checkpoint, map_location=device)
     model.load_state_dict(checkpoint["model"])
+    candidate_pool_size = args.candidate_pool_size
+    if candidate_pool_size is None:
+        candidate_pool_size = config.evaluation.candidate_pool_size
+    candidate_repeats = args.candidate_repeats
+    if candidate_repeats is None:
+        candidate_repeats = config.evaluation.candidate_repeats
+    candidate_seed = args.candidate_seed
+    if candidate_seed is None:
+        candidate_seed = config.evaluation.candidate_seed
     loaders = {"train": train_loader, "eval": eval_loader}
     splits = ["train", "eval"] if args.split == "both" else [args.split]
     for split in splits:
@@ -66,9 +75,9 @@ def main(argv: list[str] | None = None) -> None:
             loaders[split],
             config.evaluation.top_k,
             device,
-            candidate_pool_size=args.candidate_pool_size,
-            candidate_repeats=args.candidate_repeats,
-            candidate_seed=args.candidate_seed,
+            candidate_pool_size=candidate_pool_size,
+            candidate_repeats=candidate_repeats,
+            candidate_seed=candidate_seed,
         )
         for key, value in metrics.items():
             print(f"{split}_{key}: {value:.4f}")

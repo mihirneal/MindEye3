@@ -36,6 +36,9 @@ model:
   brain_transformer_layers: 2
   brain_transformer_heads: 8
   clip_token_loss_weight: 0.25
+  clip_token_decoder: bit_cross_attention
+  clip_token_decoder_layers: 2
+  clip_token_decoder_heads: 8
 
 training:
   epochs: 30
@@ -47,7 +50,10 @@ training:
   retrieval_loss_weight: 1.0
   device: cuda
   log_every: 25
-  best_metric: image_brain_to_image_top10
+  best_metric: mindeye2_brain_to_image_top1
 
 evaluation:
   top_k: [1, 5, 10]
+  candidate_pool_size: 300
+  candidate_repeats: 30
+  candidate_seed: 7

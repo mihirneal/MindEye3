@@ -39,8 +39,12 @@ uv run mindeye3-train --config configs/v1_nsd_retrieval.yaml
 ## Reconstruction V2
 
 The reconstruction path starts with a Brain-IT-inspired joint objective: pooled
-CLIP retrieval plus optional spatial OpenCLIP-token prediction for diffusion
-conditioning. Build a token cache on Lightning before running the joint config:
+CLIP retrieval plus spatial OpenCLIP-token prediction for diffusion
+conditioning. The joint configs use brain-token encoders and a BIT-style
+cross-attention decoder, where learned image-feature queries attend directly to
+functional brain-token features while the pooled CLIP retrieval head stays active.
+They also checkpoint on 300-way MindEye2-style brain-to-image retrieval. Build a
+token cache on Lightning before running the joint config:
 
 ```bash
 uv run --extra vision mindeye3-build-nsd-embeddings \
