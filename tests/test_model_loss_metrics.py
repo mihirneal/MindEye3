@@ -2,7 +2,7 @@ import torch
 
 from mindeye3.losses import SymmetricContrastiveLoss
 from mindeye3.metrics import candidate_retrieval_accuracy, topk_retrieval_accuracy
-from mindeye3.models import BrainEncoder, RetrievalModel
+from mindeye3.models import BrainEncoder, BrainTokenEncoder, RetrievalModel
 
 
 def test_brain_encoder_forward_shape() -> None:
@@ -61,6 +61,41 @@ def test_retrieval_model_can_predict_clip_tokens() -> None:
 
     assert outputs["image"].shape == (4, 12)
     assert outputs["clip_tokens"].shape == (4, 5, 6)
+
+
+def test_brain_token_encoder_forward_shape() -> None:
+    encoder = BrainTokenEncoder(
+        fmri_dim=17,
+        num_tokens=4,
+        token_dim=16,
+        transformer_layers=1,
+        transformer_heads=4,
+        scene_dim=8,
+        num_subjects=3,
+        subject_embedding_dim=4,
+        subject_input_adapter=True,
+    )
+    output = encoder(torch.randn(4, 17), subject_id=torch.tensor([0, 1, 2, 1]))
+
+    assert output.shape == (4, 8)
+
+
+def test_retrieval_model_can_use_brain_token_encoder() -> None:
+    model = RetrievalModel(
+        fmri_dim=17,
+        hidden_dim=32,
+        hidden_layers=2,
+        scene_dim=8,
+        embedding_dim=12,
+        encoder_type="brain_tokens",
+        brain_tokens=4,
+        brain_token_dim=16,
+        brain_transformer_layers=1,
+        brain_transformer_heads=4,
+    )
+    output = model(torch.randn(4, 17))
+
+    assert output.shape == (4, 12)
 
 
 def test_symmetric_contrastive_loss_is_lower_for_matching_pairs() -> None:

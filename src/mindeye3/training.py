@@ -29,9 +29,14 @@ def build_model(
         scene_dim=config.model.scene_dim,
         embedding_dim=embedding_dim if embedding_dim is not None else config.data.embedding_dim,
         dropout=config.model.dropout,
+        encoder_type=config.model.encoder_type,
         num_subjects=num_subjects,
         subject_embedding_dim=config.model.subject_embedding_dim,
         subject_input_adapter=config.model.subject_input_adapter,
+        brain_tokens=config.model.brain_tokens,
+        brain_token_dim=config.model.brain_token_dim,
+        brain_transformer_layers=config.model.brain_transformer_layers,
+        brain_transformer_heads=config.model.brain_transformer_heads,
         clip_token_shape=clip_token_shape,
     )
 

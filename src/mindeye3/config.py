@@ -34,12 +34,17 @@ class DataConfig:
 
 @dataclass(frozen=True)
 class ModelConfig:
+    encoder_type: str = "mlp"
     hidden_dim: int = 128
     hidden_layers: int = 1
     scene_dim: int = 64
     dropout: float = 0.0
     subject_embedding_dim: int = 0
     subject_input_adapter: bool = False
+    brain_tokens: int = 128
+    brain_token_dim: int = 256
+    brain_transformer_layers: int = 2
+    brain_transformer_heads: int = 8
     clip_token_loss_weight: float = 0.0
 
 

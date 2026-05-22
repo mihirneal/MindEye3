@@ -4,6 +4,7 @@ import torch
 from torch import nn
 
 from mindeye3.models.brain_encoder import BrainEncoder
+from mindeye3.models.brain_token_encoder import BrainTokenEncoder
 
 
 class ProjectionHead(nn.Module):
@@ -24,22 +25,44 @@ class RetrievalModel(nn.Module):
         scene_dim: int,
         embedding_dim: int,
         dropout: float = 0.0,
+        encoder_type: str = "mlp",
         num_subjects: int = 0,
         subject_embedding_dim: int = 0,
         subject_input_adapter: bool = False,
+        brain_tokens: int = 128,
+        brain_token_dim: int = 256,
+        brain_transformer_layers: int = 2,
+        brain_transformer_heads: int = 8,
         clip_token_shape: tuple[int, int] | None = None,
     ) -> None:
         super().__init__()
-        self.encoder = BrainEncoder(
-            fmri_dim=fmri_dim,
-            hidden_dim=hidden_dim,
-            hidden_layers=hidden_layers,
-            scene_dim=scene_dim,
-            dropout=dropout,
-            num_subjects=num_subjects,
-            subject_embedding_dim=subject_embedding_dim,
-            subject_input_adapter=subject_input_adapter,
-        )
+        encoder_type = encoder_type.lower()
+        if encoder_type == "mlp":
+            self.encoder = BrainEncoder(
+                fmri_dim=fmri_dim,
+                hidden_dim=hidden_dim,
+                hidden_layers=hidden_layers,
+                scene_dim=scene_dim,
+                dropout=dropout,
+                num_subjects=num_subjects,
+                subject_embedding_dim=subject_embedding_dim,
+                subject_input_adapter=subject_input_adapter,
+            )
+        elif encoder_type == "brain_tokens":
+            self.encoder = BrainTokenEncoder(
+                fmri_dim=fmri_dim,
+                num_tokens=brain_tokens,
+                token_dim=brain_token_dim,
+                transformer_layers=brain_transformer_layers,
+                transformer_heads=brain_transformer_heads,
+                scene_dim=scene_dim,
+                dropout=dropout,
+                num_subjects=num_subjects,
+                subject_embedding_dim=subject_embedding_dim,
+                subject_input_adapter=subject_input_adapter,
+            )
+        else:
+            raise ValueError("encoder_type must be one of: mlp, brain_tokens")
         self.image_head = ProjectionHead(scene_dim, embedding_dim)
         self.clip_token_shape = clip_token_shape
         if clip_token_shape is None:
