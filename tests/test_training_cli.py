@@ -5,6 +5,7 @@ import yaml
 from mindeye3.checkpointing import load_checkpoint
 from mindeye3.cli.build_nsd_embeddings import build_parser as build_embeddings_parser
 from mindeye3.cli.eval import build_parser as build_eval_parser
+from mindeye3.cli.export_nsd_reconstructions import build_parser as build_export_recon_parser
 from mindeye3.cli.train import build_parser as build_train_parser
 from mindeye3.config import load_config
 from mindeye3.training import train
@@ -39,6 +40,20 @@ def test_cli_parsers_accept_required_args() -> None:
             "--project-intermediate",
         ]
     )
+    export_args = build_export_recon_parser().parse_args(
+        [
+            "--config",
+            "configs/v0_synthetic.yaml",
+            "--checkpoint",
+            "checkpoint.pt",
+            "--stimuli",
+            "nsd_stimuli.hdf5",
+            "--output-dir",
+            "previews",
+            "--top-k",
+            "2",
+        ]
+    )
 
     assert train_args.config == "configs/v0_synthetic.yaml"
     assert eval_args.checkpoint == "checkpoint.pt"
@@ -48,6 +63,7 @@ def test_cli_parsers_accept_required_args() -> None:
     assert embedding_args.limit == 10
     assert embedding_args.layer_index == 11
     assert embedding_args.project_intermediate
+    assert export_args.top_k == 2
 
 
 def test_training_smoke_writes_checkpoint(tmp_path: Path) -> None:

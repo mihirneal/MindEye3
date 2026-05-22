@@ -23,6 +23,7 @@ vision = [
 
 [project.scripts]
 mindeye3-build-nsd-embeddings = "mindeye3.cli.build_nsd_embeddings:main"
+mindeye3-export-nsd-reconstructions = "mindeye3.cli.export_nsd_reconstructions:main"
 mindeye3-train = "mindeye3.cli.train:main"
 mindeye3-eval = "mindeye3.cli.eval:main"
 
